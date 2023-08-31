@@ -1,4 +1,4 @@
-# Unifying frameworkd for AI assisted Directed Evolution (AIDE)
+# Unifying framework for AI assisted Directed Evolution (AIDE)
 An attempt to create a modular, unifying code base for incorporating recent (and future) AI techniques to accelerate directed evolution campaigns. 
 
 ## Motivation
@@ -11,7 +11,7 @@ These strategies broadly fall into one or more of the following categories:
 2. In silico estimators of the desired property/ies with uncertainty estimation act as aquisition functions that balance exploration of fitness space with exploitation
 3. Library generation tools. The fitness landscape is infinately large and cannot be explored in full, even with in silico estimators, and these tools produce a tractable library size to explore.
 
-__While these recent applications are all somewhat unique, I believe that they all fit within the above framework__. This library attempts to define a framework into which these mmodern tools can be aggregated.
+__While these recent applications are all somewhat unique, I believe that they all breakdown as above__. This library attempts to define a framework into which these modern tools can be aggregated.
 
 ## Getting started
 
