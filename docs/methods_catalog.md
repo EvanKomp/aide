@@ -19,7 +19,10 @@ Design considerations from the methods unto the framework are noted.
     3. Since some methods rely on a fixed set of residues being explored, while others suggest full proteins, we must differentiate between mutation libraries and variant libraries. Further, we must differentiate between mutation set encoders and variant encoders.
     4. We may not have control over the libraries for mutagensis methods, eg we know which residues can change, but the changes are done randomly and we later sequence. This suggests that we need a method that produces libraries by data input after sequencing.
 
-### 
+### 1. Wu, Z., Kan, S. B. J., Lewis, R. D., Wittmann, B. J. & Arnold, F. H. Machine learning-assisted directed protein evolution with combinatorial libraries. Proc Natl Acad Sci U S A 116, 8852–8858 (2019).
+- __Summary__: Used ML on one-hot encoded mutations over a combinatorial library. Randomly screened some variants from the library. With trained model, find top 1000 performing variants by prediction over combinatorial space, and compute the AA distributions over each position from thos to develop degenerate codon scheme to sample from new variants. Note this differs from directly selection top N predicted variants because those variants would have to be fully synthesized. This possible but more expensive than random site directed mutagensis with degenerate oligonucleotides.
+__Design considerations__:
+    1. While the model was able to filter possible variants from the combinatorial library, the authors went a cheaper route and did some analysis over the distribution. This suggests that We may need some sort of analysis component that acts on a library. Eg. to fit within the framework, the aquisition function in this case is simply a top N greedy model filter, outputing a filtered Library of variants, but maybe we want an optional downstream component to analyze a Library and extract some information. In this case, distribution over mutations. May even take it one step further and allow Mutation class to contain some sort of statistics, so the framework could output a Combinatorial library with statistics. For this use case: Aquisiton function outputs a VariantLibrary, and the Analysis component can convert it to a CombinatorialLibrary with each Mutation having statistics. 
 
 
 
