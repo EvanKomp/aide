@@ -9,9 +9,9 @@ These strategies broadly fall into one or more of the following categories:
 
 1. In silico estimators of the desired property/ies, used to filter (predicted) poor performing variants and reduce the number of evaluations. They are sometimes "improved" by further training after each round.
 2. In silico estimators of the desired property/ies with uncertainty estimation act as aquisition functions that balance exploration of fitness space with exploitation
-3. Library generation tools. The fitness landscape is infinately large and cannot be explored in full, even with in silico estimators, and these tools produce a tractable library size to explore.
+3. Library generation tools. The fitness landscape is infinately large and cannot be explored in full, even with in silico estimators, and these tools produce a tractable library size to explore. This could be generating or suggesting mutations from vast fitness space, or even generating entire multi point variants with insertions/deletions, when full DNA synthesis is possible at the desired throughput.
 
-__While these recent applications are all somewhat unique, I believe that they all fit within the above framework__. This library attempts to define a framework into which these mmodern tools can be aggregated.
+__While these recent applications are all somewhat unique, I believe that they all fit within the above framework__. This library attempts to define a framework into which these modern tools can be aggregated. Further, the framework is deisgned such that it is easy to define the alogorithm and interact with between rounds of directed evolution. Functionality is provided to track progress as times goes on and smoothly transition between rounds from the bench.
 
 ## Getting started
 
