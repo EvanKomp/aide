@@ -1,16 +1,38 @@
 # Catalog of recent ML + DE publications
 
-Design considerations from the methods unto the framework are noted.
+Works that help define the contours of the space are retained. Work that is either not seminal or is captured by the other work is not given. Design considerations from the methods unto the framework are noted.
 
-## Publications
+## Learning the fitness landscape publications
+
+### Romero, P. A., Krause, A. & Arnold, F. H. Navigating the protein fitness landscape with Gaussian processes. Proceedings of the National Academy of Sciences 110, E193–E201 (2013).
+- __Summary__: Authors show that GPs can predict arbitrary protein properties from sequences, and the uncertainty from the model can be used to explore holes in the fitness landscape.
+
+### Hopf, T. A. et al. Mutation effects predicted from sequence co-variation. Nat Biotechnol 35, 128–135 (2017).
+- __Summary__: MSA model (trained per each MSA) predicts liklihood of mutations incorporating pairwise interactions. "EVMutation"
+- __Design Considerations__: 
+    1. See the DeepSequence notes below
+
+### Riesselman, A. J., Ingraham, J. B. & Marks, D. S. Deep generative models of genetic variation capture the effects of mutations. Nat Methods 15, 816–822 (2018).
+- __Summary__: MSA model (trained per each MSA) predicts liklihood of mutations incorporating high order interaction effects by relating the mutations occuring to latent distribution. Incorporates some bio structure into the architecture/training. "DeepSequence"
+- __Design Considerations__: 
+    1. Can be used to evaluate mutations zero shot, as was done to design training set in ftMLDE. Could be wrapped into an Estimator
+    2. The model can only provide information for specific positions within the WT protein, variants are described by mutation strings and breaks for positions outside of the focus of the MSA. In our framework, to use a tool like this, variants must be able to be described as a set of positonal mutation without indels. We should have a check for this for some models. Eg. have properties of the Variant class that indicate if it has indels.
+
+### Riesselman, A. et al. Accelerating Protein Design Using Autoregressive Generative Models. 757252 Preprint at https://doi.org/10.1101/757252 (2019).
+- __Summary__: Family model (trained per each Family) predicts liklihood of variants incorporating high order interaction effects by modeling the causal probability of AA strings in the family. Eg. Train causal language model (Not a transformer, comparitavely low parameter) to a protein family. probability of a variant is the product probability of all causal token probs. Differs from their DeepSequence work in that it is not a position/mutation based model and can handle indels.
+- __Design Considerations__: 
+    1. Can be used to evaluate mutations zero shot, as was done to design training set in ftMLDE. Could be wrapped into an Estimator
+
+
+
+### HSU combine models
+
+## DE Publications
 ### Fox, R. J. et al. Improving catalytic function by ProSAR-driven enzyme evolution. Nat Biotechnol 25, 338–344 (2007).
 - __Summary__: The authors utilize a number of techniques to generate variation (saturation, random, inclusion of close homologs, and gene shuffling) and from the generated variation the indentify each possible mutation to design a combinatorial library. The use semi synthetic oligonucleotides to sample from permutations of the library to screen. A linear PLAS model is trained with a single coefficient for each possible binary mutation eg. A123T has a different coefficient than A123G. After each round, large coefficients from the model that are sufficiently confident (over multiple variants with that mutation) are used to filter out bad or neutral mutations. Beneficial mutations are fixed and cycled back into the library, along with some fresh variation.
 - __Design considerations__: 
     1. This method does not filter variants to test, it saturates the library with good mutations. This suggests that "estimators" may need to be used in the context of variant generation, not only aquisition functions. 
     2. This method would require one to be able to join libraries. Eg. the user inputs a library of variants with tested scores, A library of mutations is produced by the PLAS estimator. This library needs to be joined with other mutations from variation like random mutagenesis
-
-### Romero, P. A., Krause, A. & Arnold, F. H. Navigating the protein fitness landscape with Gaussian processes. Proceedings of the National Academy of Sciences 110, E193–E201 (2013).
-- __Summary__: Authors show that GPs can predict arbitrary protein properties from sequences, and the uncertainty from the model can be used to explore holes in the fitness landscape.
 
 ### Saito, Y. et al. Machine-Learning-Guided Mutagenesis for Directed Evolution of Fluorescent Proteins. ACS Synth. Biol. 7, 2014–2022 (2018).
 - __Summary__: An initial random library is developed via point saturation mutagenesis and random mutagensis at four residue positions, which are used to train a GP. Used physicochemical residue features (residue wise features) concatenated to train a GP (COMBO) and used probability-of-improvement as an aquisition function. Eg. assuming guassian, the cumulative mass function of performance greater than the current step.
@@ -39,8 +61,15 @@ Design considerations from the methods unto the framework are noted.
     1. They have code, hopefully most of the functionality can be imported.
     2. If not, we need to have the Aquisition function be highly modular b/c it involves multiple clustering models. 
 
-### PLUG AND PLAY
+### Emami, P., Perreault, A., Law, J., Biagioni, D. & St. John, P. Plug & play directed evolution of proteins with gradient-based discrete MCMC. Mach. Learn.: Sci. Technol. 4, 025014 (2023).
+- __Summary__: Capitalizing on recent work (Hsu et al.) showing that unsupervised evolutionary probability models can be combined with supervised models to increase predictive performance, the authors propose a DE mutation sampler that can explore greater than single point change paths. The sampler relies on an arbitrary product of expert models (POE) contingent that the models are differentiable. For some random max distance R (eg 5 mutations away) compute POE derivative, use to sample a single AA (where AA pointing more steeply to POE optima more likely), repeat to R. Keep variant with liklihood propto product of increase in POE liklihood compared to parent.
+- __Design Considerations__: 
+    1. We need an operation that can combine estimators, check they are differentiable, then run the sampler to output a library.
+    2. This method is general in that it could work to sample from random positions, but also a constrained set. Thus the method should at minimum take the parent seq and the expert models as input, but could also take a mutation set or list of positions to constrain the sampling.
+    3. Inputs to all models must be one-hot encoded to ensure the categorical softmax of derivatives directly describes an AA at a position.
 
+
+### LINDER
 
 
 
@@ -49,9 +78,10 @@ Design considerations from the methods unto the framework are noted.
 - The framework will require that ML estimators be used in the context of variant generation as well as aquisition functions.
 - We should center the framework around a "Library" class that records "Variants" and "Mutations". A variant maps a full sequence. Variants can be directly defined or defined by combining Mutations. Variant generation steps will produce Libraries. Aquisition function methods act on Libraries to produce smaller Libraries.
     - Mutation class must track wild type sequence (a Variant object), position and change of amino acids
-    - A Variant can be generated from the Mutation
-    - Variants can be generated combinatorially from mutations
+    - A Variant can be generated from the Mutation or set of mutations
+    - Variants libraries can be generated combinatorially from mutations
     - Variants should track (if any) Mutations that resulted in them as well as the original Variant
+    - Variants can be of type "Mutational" where it is exactly described by a set of mutations from another variant or "Abstract" where it is just a sequence. We can try to intuit a Mutational Variant from abstratc by eg. alignment, but it will be inexact.
 - There will have to be a few subclasses of Library, eg. VariantLibrary that is just a list of variants, CombinatorialLibrary which is defined by a set of mutations
 - Variant generation should probably have a few types, dictated by the experimental methods. Most methods do not have full control over the specific set of mutations and are instead random. For the random case, the variation is manually input to the framework producing a manual Library for downstream aquisition functions. For the experimental setups that allow us to express a specific protein, we can have Libraries defined in silico by the framework, eg. by random mutagenesis, recombination, deep learning generation, or model filtered mutations.
 - We should be writing things to a duck db database and libraries should be able to be saved and loaded to the database. So should variant scores. We must somehow also track which directoed evolution round we are in. This way it is easy to load libraries from each round, as well as the combination of all evaluated variants for model training from all rounds.
@@ -64,3 +94,4 @@ Design considerations from the methods unto the framework are noted.
 
 - GB1 dataset: 4 site combinatorial lbrary. About 90% empiracally tested. https://www.ncbi.nlm.nih.gov/bioproject/PRJNA278685/
 - PhoQ
+- Hsu et al.
