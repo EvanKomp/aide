@@ -1,4 +1,4 @@
-# Unifying frameworkd for AI assisted Directed Evolution (AIDE)
+# Unifying framework for AI assisted Directed Evolution (AIDE)
 An attempt to create a modular, unifying code base for incorporating recent (and future) AI techniques to accelerate directed evolution campaigns. 
 
 ## Motivation

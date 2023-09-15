@@ -23,9 +23,11 @@ Works that help define the contours of the space are retained. Work that is eith
 - __Design Considerations__: 
     1. Can be used to evaluate mutations zero shot, as was done to design training set in ftMLDE. Could be wrapped into an Estimator
 
+### Hsu, C., Nisonoff, H., Fannjiang, C. & Listgarten, J. Learning protein fitness models from evolutionary and assay-labeled data. Nat Biotechnol 40, 1114–1122 (2022).
+- __Summary__: Benchmark a number of different methods to combine both supervised predictors and evolutionary density predictors. Eg. predict probability of sequence with  DeepSequence-like "weak positive" model with additional features and supervised training. Weak positive models "augmented" in this way: Profile HMM, EVMutation, DeepSequence. Also compared to finetuning ESM on the supervised data. Many benchmark datasets included.
+- __Design Considerations__:
+    1. As opposed to a ensemble of estimators, this is partially sequential, eg. Use pretrained estimator to get features, add some more features, train a supervised. We need a mechanism to combine models in this way, eg. make an astimator class that can arbitrarily connect models. Maybe sklearn already has this? Estimator inside of an Estimator?
 
-
-### HSU combine models
 
 ## DE Publications
 ### Fox, R. J. et al. Improving catalytic function by ProSAR-driven enzyme evolution. Nat Biotechnol 25, 338–344 (2007).
@@ -67,7 +69,6 @@ Works that help define the contours of the space are retained. Work that is eith
     1. We need an operation that can combine estimators, check they are differentiable, then run the sampler to output a library.
     2. This method is general in that it could work to sample from random positions, but also a constrained set. Thus the method should at minimum take the parent seq and the expert models as input, but could also take a mutation set or list of positions to constrain the sampling.
     3. Inputs to all models must be one-hot encoded to ensure the categorical softmax of derivatives directly describes an AA at a position.
-
 
 ### LINDER
 
