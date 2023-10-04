@@ -70,8 +70,10 @@ Works that help define the contours of the space are retained. Work that is eith
     2. This method is general in that it could work to sample from random positions, but also a constrained set. Thus the method should at minimum take the parent seq and the expert models as input, but could also take a mutation set or list of positions to constrain the sampling.
     3. Inputs to all models must be one-hot encoded to ensure the categorical softmax of derivatives directly describes an AA at a position.
 
-### LINDER
-
+### Linder, J., Bogard, N., Rosenberg, A. B. & Seelig, G. A Generative Neural Network for Maximizing Fitness and Diversity of Synthetic DNA and Protein Sequences. Cell Systems 11, 49-62.e16 (2020).
+- __Summary__: Jumping off recent work that showed that you could put predictors and generators together to train a generated that produces sequences with high predicted fitness, the authors propose a method to generate sequences with high predicted fitness and diversity. A generator encodes noise into a positional weight matrix over amino acids or nucleotides. To train the model, it is placed in line with a differntiable predictor and a trick used to compute loss over non-categorical PWM. To train the model to also maximize diversity, the generator is asked to produce two sequences from different noise vectors, and the similarity of the two output sequences is computed. This contributes to the loss along with the predicted performance.
+- __Design Considerations__:
+    1. Once the model is trained, we only need the generator. Thus it can serve as Library generator. We probaby do not want to include code to train the model, and instead rely on their code. We should have a method to load the trained model and output a generator.
 
 
 ## Design notes
@@ -96,3 +98,16 @@ Works that help define the contours of the space are retained. Work that is eith
 - GB1 dataset: 4 site combinatorial lbrary. About 90% empiracally tested. https://www.ncbi.nlm.nih.gov/bioproject/PRJNA278685/
 - PhoQ
 - Hsu et al.
+
+## Concise summary of methods for LLM input
+
+"""The project aims to create a Python library for automating and optimizing directed protein evolution experiments. It will integrate data handling, machine learning, and lab process simulation. Components include:
+
+Variant and Mutation classes for sequence representation and manipulation.
+Library and CombinatorialLibrary classes to encapsulate sets of sequences.
+BaseEstimator and BaseTransformation classes for machine learning models, compatible with the Scikit-learn API.
+AcquisitionFunction to guide variant selection based on estimator predictions.
+LibraryGeneration to create new libraries of sequences.
+LabStep for encapsulating a single iteration of a lab-based method.
+Runner to execute multiple LabStep instances, handling database interaction and parameter tuning.
+The system will utilize a DuckDB database for storage and tracking of sequences, scores, and iterations. It will offer modular, verbose parameterization, and will leverage existing frameworks like Scikit-learn for machine learning tasks."""

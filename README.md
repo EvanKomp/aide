@@ -1,28 +1,24 @@
-# Unifying framework for AI assisted Directed Evolution (AIDE)
-An attempt to create a modular, unifying code base for incorporating recent (and future) AI techniques to accelerate directed evolution campaigns. 
+# AI-assisted Directed Evolution Framework (AIDE)
+A modular codebase for integrating current and future AI techniques to expedite directed evolution campaigns.
 
 ## Motivation
+Directed evolution optimizes proteins for specific properties through iterative mutation and evaluation. Laboratory screening is resource-intensive. This framework aims to incorporate AI methods to reduce the number of evaluations required. A number of strategies have been proposed recently, and thos software aims to integrate them into a single framework.
 
-Directed evolution campaigns leverage "survival of the fittest" in an artifical setting in order to drive a protein to target properties such as higher stability, activity, etc. This process involves multiple rounds of mutation and evaluation. The variants must be evaluated and screened. A number of techniques exist to express and screen the variants or otherwise select for the target property, descibed elsewhere[]. Regardless, screening in the lab is expensive and time consuming, and it is desired to limit the number of evaluations as much as possible while still achieving an increase in fitness. __To this end, a number of different strategies have been proposed recently to accelerate this process with machine learning__. 
+### Strategies 
+1. **In Silico Estimators**: Predict properties to filter low-performing variants.
+  - Improved through iterative training.
+2. **Uncertainty Estimators**: Act as acquisition functions for exploration-exploitation balance.
+3. **Library Generation Tools**: Produce manageable library sizes from vast fitness landscapes.
 
-These strategies broadly fall into one or more of the following categories:
+This framework aggregates these tools and facilitates smooth transitions between lab rounds.
 
-1. In silico estimators of the desired property/ies, used to filter (predicted) poor performing variants and reduce the number of evaluations. They are sometimes "improved" by further training after each round.
-2. In silico estimators of the desired property/ies with uncertainty estimation act as aquisition functions that balance exploration of fitness space with exploitation
-3. Library generation tools. The fitness landscape is infinately large and cannot be explored in full, even with in silico estimators, and these tools produce a tractable library size to explore. This could be generating or suggesting mutations from vast fitness space, or even generating entire multi point variants with insertions/deletions, when full DNA synthesis is possible at the desired throughput.
-
-__While these recent applications are all somewhat unique, I believe that they all fit within the above framework__. This library attempts to define a framework into which these modern tools can be aggregated. Further, the framework is deisgned such that it is easy to define the alogorithm and interact with between rounds of directed evolution. Functionality is provided to track progress as times goes on and smoothly transition between rounds from the bench.
-
-## Getting started
-
+## Getting Started
 TODO
 
-## Summary of the framework
-
+## Summary of the Framework
 TODO
 
 ## References
-
 TODO
 
 ## License
