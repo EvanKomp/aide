@@ -99,15 +99,33 @@ Works that help define the contours of the space are retained. Work that is eith
 - PhoQ
 - Hsu et al.
 
-## Concise summary of methods for LLM input
+# Concise summary for LLM input
 
-"""The project aims to create a Python library for automating and optimizing directed protein evolution experiments. It will integrate data handling, machine learning, and lab process simulation. Components include:
+```
+# Catalog of Relevant Literature
 
-Variant and Mutation classes for sequence representation and manipulation.
-Library and CombinatorialLibrary classes to encapsulate sets of sequences.
-BaseEstimator and BaseTransformation classes for machine learning models, compatible with the Scikit-learn API.
-AcquisitionFunction to guide variant selection based on estimator predictions.
-LibraryGeneration to create new libraries of sequences.
-LabStep for encapsulating a single iteration of a lab-based method.
-Runner to execute multiple LabStep instances, handling database interaction and parameter tuning.
-The system will utilize a DuckDB database for storage and tracking of sequences, scores, and iterations. It will offer modular, verbose parameterization, and will leverage existing frameworks like Scikit-learn for machine learning tasks."""
+## Learning the Fitness Landscape
+
+- **Romero et al.** Demonstrated the efficacy of Gaussian processes to predict protein properties from sequences.
+- **Hopf et al.** Proposed the "EVMutation" model to predict the likelihood of mutations.
+- **Riesselman et al.** Introduced the "DeepSequence" model for predicting the likelihood of mutations incorporating high order interaction effects.
+- **Hsu et al.** Benchmarked several methods to combine supervised predictors and evolutionary density predictors.
+
+## Directed Evolution Publications
+
+- **Fox et al.** Used techniques to generate variation and identify each possible mutation to design a combinatorial library.
+- **Saito et al.** Utilized Gaussian processes to train a model that uses physicochemical residue features.
+- **Wu et al.** Implemented machine learning on one-hot encoded mutations over a combinatorial library.
+- **Wittmann et al.** Enhanced the strategy of Wu et al. by using better-than-random initial data sampling for experimenting.
+- **Qiu et al.** Integrated unsupervised clustering into sample selection.
+- **Emami et al.** Proposed a DE mutation sampler that can explore greater than single point change paths.
+- **Linder et al.** Proposed a method to generate sequences with high predicted fitness and diversity.
+
+## Design Considerations
+
+- The framework should center around a "Library" class that records "Variants" and "Mutations". 
+- ML estimators need to be used in the context of variant generation as well as acquisition functions.
+- The framework should be able to generate Libraries by data input after sequencing for random mutagenesis methods.
+- Libraries should be saved and loaded to a database. Variant scores should also be saved, and the directed evolution round should be tracked.
+- A high-level "Runner" class should handle saving and loading to file over multiple evolution rounds, as well as calling the pipelines with varying parameters as the experiments proceed.
+```
