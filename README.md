@@ -18,7 +18,7 @@ The framework also accommodates different subclasses of Library, such as Variant
 
 Variant generation should be flexible, with a few types based on the experimental methods. Most methods do not have full control over the specific set of mutations and are instead random. For these cases, the variation is manually input to the framework, producing a manual Library for downstream acquisition functions.
 
-AIDE uses a database, DuckDB, to save and load Libraries and track the directed evolution round. Existing frameworks like Sklearn could be leveraged for estimators, transformations, and pipelines. A high-level "Runner" class handles saving and loading to file over multiple evolution rounds, as well as calling the pipelines with varying parameters as the experiments proceed.
+AIDE uses a database, to save and load Libraries and track the directed evolution round. Existing frameworks like Sklearn could be leveraged for estimators, transformations, and pipelines. A high-level "Runner" class handles saving and loading to file over multiple evolution rounds, as well as calling the pipelines with varying parameters as the experiments proceed.
 
 ## Getting Started
 TODO
