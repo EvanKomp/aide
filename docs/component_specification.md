@@ -112,9 +112,11 @@ or  it might be filtering an existing library
     3. 'ready': Connected to database, and we can generate the library
     4. 'started': Library has been generated, but not finished
     5. 'complete': We have labels saved back to the database.
-_ `_metadata`: Dictionary of metadata for the round, eg. notes, start time, end time, etc.
+- `_metadata`: Dictionary of metadata for the round, eg. notes, start time, end time, etc.
+- `_requires_library`: True if the round requires an input library to be generated.
+- `_training_data_strategy`: indicates which data to grab when using with a database, one of 'all' for all variants, 'labeled' for only labeled variants, 'latest' for only the latest round of variants.
 
-### `RoundLibraryGeneration(Round)`, `RoundFiltering(Round)`, `RoundScreening(Round)`
+### `RoundLibraryGeneration(Round)`, `RoundFiltering(Round)`
 These are subclassed further for specific library generation methods, filtering methods, and screening methods from the literature.
 
 ---
@@ -122,7 +124,7 @@ These are subclassed further for specific library generation methods, filtering 
 ## 7. Runner
 Defines multiple rounds, handles saving to database, logging, and monitoring. Should be subclassed to
 ### `Runner`
-- `__init__(self, config: Dict)`: Initialize with a configuration dictionary. Sets steps
+- `__init__(self, config: Dict, overwrite: bool=False)`: Initialize with a configuration dictionary. Sets steps
 - `get_status(self) -> str`: Return the status of the campaign, eg. which round we are on and whether it is complete.
 - `_steps`: List of Rounds.
 - `step(self, data_path: str=None, id_col: str=None, seq_col: str=None, mutations_col: str=None, labels_col: str=None, exp_time: str=None, notes: str=None)`: Execute the next step in the pipeline. Will give library if that is the next step, or will take library and labels if that is the next step, depending on the round status.

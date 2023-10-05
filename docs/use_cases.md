@@ -197,12 +197,44 @@ config = RunnerConfig(
             'params': {
                 'number_of_variants': 10,
             }
-        }   
+        },
+        {
+            'type': 'GPSelectionRound',
+            'params': {
+                'number_of_variants': 10,
+                'features': 'ResiduePhysicalFeatures',
+                'strategy': 'InfoMax'
+            }
+        },
+        {
+            'type': 'RandomGenerationRound',
+            'params': {
+                'number_of_variants': 10,
+                'features': 'ResiduePhysicalFeatures',
+                'strategy': 'greedy'
+            }
+        }     
 
     ]
-    ) 
+)
 
+runner = Runner(config)
+runner.step()
+>>> CampaignError: Cannot take step of round 0, status is 'not started'
+runner.step(data_path='initial_library.csv', parent_seq='MVKMG', id_col='id', mutations_col='mut') # the library from mutagenesis, etc
+>>> Round 0 of type RandomGenerationRound() status is 'ready'
+runner.step()
+>>> Round 0 of type RandomGenerationRound() status is 'started', library has 10 variants at file path 'library_for_exp.csv'
+runner.step(data_path='experimental_results.csv', id_col='id', mutations_col='mut', label_col='label')
+>>> Round 0 of type RandomGenerationRound() status is 'complete'
+runner.step()
+>>> Round 1 of type GPSelectionRound(features='ResiduePhysicalFeatures', strategy='InfoMax', number_of_variants=10) status is 'started', library has 10 variants at file path 'library_for_exp.csv'
+runner.step(data_path='experimental_results.csv', id_col='id', mutations_col='mut', label_col='label')
+>>> Round 1 of type GPSelectionRound(features='ResiduePhysicalFeatures', strategy='InfoMax', number_of_variants=10) status is 'complete'
+runner.step()
+>>> Round 2 of type GPSelectionRound(features='ResiduePhysicalFeatures', strategy='greedy', number_of_variants=10) status is 'started', library has 10 variants at file path 'library_for_exp.csv'
 
+# the final 10 are selected greedily
 ```
 
 
