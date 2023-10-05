@@ -14,6 +14,7 @@
 ---
 
 ## 1. Variant and Mutation Classes
+These classes define proteins and functionality to apply mutations to those sequence strings. Data classes are utilized here.
 
 ### `Variant`
 - `__init__(self, parent_sequence: str=None,  mutation: Union[Mutation, MutationSet], id: str=None)`: Initialize with a sequence.
@@ -42,6 +43,8 @@
 
 ## 2. Library Classes
 
+Defines a collection of variants and methods to split them, extract certain variants, save to file etc. The package revolvoes around working with these libraries eg. generating them, adding labels to them, filtering them, etc.
+
 ### `Library`
 - `__init__(self, variants: List[Variant], labels: List[float]=None, round: Round=None)`: Initialize with a list of variants.
 - `get_statistics(self) -> Dict`: Return descriptive statistics.
@@ -64,7 +67,7 @@
 
 ## 3. Estimator and Transformation Classes
 
-Use sklearn. Used for both encoding and models.
+These apply to Libraries. Some functionality include, making predictions, encoding proteins, generating proeins. Use sklearn estimators so that we don't have to rewrite.
 
 ### `BaseEstimator`
 - `fit(self, X, y)`: Fit the model.
@@ -80,9 +83,11 @@ Use sklearn. Used for both encoding and models.
 
 ## 4. Acquisition Function
 
+Define a math transform to select the next variants to test from the output of models. This is the core of the active learning process. This will be stacked into a pipeline after a predictor and a featurizer.
+
 ### `AcquisitionFunction`
-- `__init__(self, estimator: BaseEstimator, params: Dict)`: Initialize with an estimator and parameters.
-- `acquire(self) -> Variant`: Perform the acquisition.
+- `__init__(self, **kwargs)`: Initialize with an estimator and parameters.
+- `transform(self)`: Perform the acquisition.
 
 ---
 
@@ -90,23 +95,26 @@ Use sklearn. Used for both encoding and models.
 
 ### `LibraryGeneration`
 Abstract parent libary generation class.
-- `__init__(self, estimator: BaseEstimator, strategy: str)`: Initialize with an estimator and a generation strategy.
-- `generate(self) -> Library`: Generate a new library.
+- `__init__(self, **kwargs)`: Initialize with an estimator and a generation strategy.
+- `fit(self, Library)`: Fit the model to a library. __Need to think about inputs here, these are all NN based so nor sure if we can extract out the features from the library inside of the class or if we need to do it before hand with an encoder (prefered).__
+- `predict(self) -> Library`: Generate a new library.
+- `from_pretrained(cls, **kwargs) -> LibraryGeneration`: Load a pretrained model.
 
 ---
 
 ## 6. Round
 ### `Round`
-Abstract parent round class. Used to define a step in the lab, eg. this might be generating a new library to test,
-or  it might be filtering an existing library
+Abstract parent round class. Used to define a step in the lab, eg. this might be generating a new library to test, or  it might be filtering an existing library. These need to be modular and stackable. We need functionality to check if the round is ready to go
 - `__init__(self, params: Dict)`: Initialize with parameters. No library yet. Status is None
 - `set_starting_library(self, library: Library)`: Set the library for this round. Save to database if present.
 - `get_library_for_exp(self) -> Library`: Return the library for this round from the database if it exists, or generate it and save it to the database.
 - `set_labels(self, notes: str=None, exp_time: str=None)`: Check that labels have been added to the libarary and save, update status to 'complete'.
-- `to_db(self, db: CampaignDatabase)`: Save the round to the database.
+- `save_to_db(self)`: Save the round to the database. Database must have been set by either to or from.
+- `to_db(self, db: CampaignDatabase, idx: int)`: Save the round to the database.
 - `from_db(cls, db: CampaignDatabase, idx: int) -> Round`: Load the round from the database.
-- `_id`: Unique identifier for the round, None if not saved/from the database.
-- `_status`: Status of the round, one of 
+- `database`: CampaignDatabase object, None if not connected to a database.
+- `id`: Unique identifier for the round, None if not saved/from the database.
+- `status`: Status of the round, one of 
     1. 'unknown': Not connected to database at all
     2. 'not started': Connected to database, but it is a future round and we cannot generate the library yet
     3. 'ready': Connected to database, and we can generate the library
@@ -122,7 +130,7 @@ These are subclassed further for specific library generation methods, filtering 
 ---
 
 ## 7. Runner
-Defines multiple rounds, handles saving to database, logging, and monitoring. Should be subclassed to
+Defines multiple rounds, handles saving to database, logging, and monitoring. Should be subclassed to define a specific campaign eg. from a paper.
 ### `Runner`
 - `__init__(self, config: Dict, overwrite: bool=False)`: Initialize with a configuration dictionary. Sets steps
 - `get_status(self) -> str`: Return the status of the campaign, eg. which round we are on and whether it is complete.
@@ -168,6 +176,11 @@ Libraries are loaded and saved to the database. Scheme for a campaign:
 - `__init__(self, path: str)`: Initialize or load the database.
 - `current_round_status(self) -> (int, status)`: Return the first the latest round that is at least ready, and its status.
 - `get_round(self, idx: int) -> Round`: Return the round with the given index.
+- `add_round(self, round: Round) -> int`: Add a round to the database and return its index.
+- `save_round(self, round: Round)`: Update round data, eg. status, size, labeled_size, etc. Round must have an index, eg. it is assigned to the database.
+- `_check_round(self, round: Round)`: Check that the round is in the database, and that the round has an index, and is the same type, etc.
+- `get_rounds(self) -> List[Round]`: Return a list of all rounds in the database.
+- `get_rounds_by_status(self, status: str) -> List[Round]`: Return a list of all rounds in the database with the given status.
 - `get_current_round(self) -> Round`: Return the latest round that is at least ready.
 
 
