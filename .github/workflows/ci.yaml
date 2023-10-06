@@ -1,0 +1,30 @@
+name: Python CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.7, 3.8, 3.9, 3.10]  # Adjust these versions as per your needs
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]  # This installs your package in development mode along with dev dependencies
+
+    - name: Run tests
+      run: |
+        cd test
+        pytest  # Adjust if you have a specific command or flags to run your tests
