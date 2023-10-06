@@ -1,28 +1,34 @@
-# Unifying framework for AI assisted Directed Evolution (AIDE)
-An attempt to create a modular, unifying code base for incorporating recent (and future) AI techniques to accelerate directed evolution campaigns. 
 
-## Motivation
+# AI-assisted Directed Evolution Unifying Framework (AIDE) Summary
 
-Directed evolution campaigns leverage "survival of the fittest" in an artifical setting in order to drive a protein to target properties such as higher stability, activity, etc. This process involves multiple rounds of mutation and evaluation. The variants must be evaluated and screened. A number of techniques exist to express and screen the variants or otherwise select for the target property, descibed elsewhere[]. Regardless, screening in the lab is expensive and time consuming, and it is desired to limit the number of evaluations as much as possible while still achieving an increase in fitness. __To this end, a number of different strategies have been proposed recently to accelerate this process with machine learning__. 
+AIDE is a modular software project designed to integrate current and future AI techniques to expedite directed evolution campaigns. These campaigns aim to optimize proteins for specific properties using iterative mutation and evaluation, a process that can be resource-intensive and time-consuming. By incorporating AI methods, AIDE aims to reduce the number of evaluations needed.
 
-These strategies broadly fall into one or more of the following categories:
+The framework integrates several key strategies:
 
-1. In silico estimators of the desired property/ies, used to filter (predicted) poor performing variants and reduce the number of evaluations. They are sometimes "improved" by further training after each round.
-2. In silico estimators of the desired property/ies with uncertainty estimation act as aquisition functions that balance exploration of fitness space with exploitation
-3. Library generation tools. The fitness landscape is infinately large and cannot be explored in full, even with in silico estimators, and these tools produce a tractable library size to explore.
+1. **In Silico Estimators**: These tools predict properties to filter out low-performing variants, improving through iterative training.
+2. **Uncertainty Estimators**: These act as acquisition functions, balancing the exploration and exploitation of the fitness landscape.
+3. **Library Generation Tools**: These tools produce manageable library sizes from vast fitness landscapes.
 
 __While these recent applications are all somewhat unique, I believe that they all breakdown as above__. This library attempts to define a framework into which these modern tools can be aggregated.
 
-## Getting started
 
+# Design Considerations
+
+AIDE is centered around a "Library" class that records "Variants" and "Mutations". A variant can be defined directly or by combining mutations. Variant generation steps produce Libraries, and acquisition function methods act on Libraries to produce smaller Libraries. The project also requires that machine learning estimators be used in the context of variant generation and acquisition functions.
+
+The framework also accommodates different subclasses of Library, such as VariantLibrary (a list of variants) and CombinatorialLibrary (defined by a set of mutations).
+
+Variant generation should be flexible, with a few types based on the experimental methods. Most methods do not have full control over the specific set of mutations and are instead random. For these cases, the variation is manually input to the framework, producing a manual Library for downstream acquisition functions.
+
+AIDE uses a database, to save and load Libraries and track the directed evolution round. Existing frameworks like Sklearn could be leveraged for estimators, transformations, and pipelines. A high-level "Runner" class handles saving and loading to file over multiple evolution rounds, as well as calling the pipelines with varying parameters as the experiments proceed.
+
+## Getting Started
 TODO
 
-## Summary of the framework
-
+## Summary of the Framework
 TODO
 
 ## References
-
 TODO
 
 ## License
