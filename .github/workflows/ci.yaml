@@ -29,5 +29,4 @@ jobs:
 
     - name: Run tests
       run: |
-        cd test
         pytest  # Adjust if you have a specific command or flags to run your tests
