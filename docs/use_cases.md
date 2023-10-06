@@ -207,7 +207,7 @@ config = RunnerConfig(
             }
         },
         {
-            'type': 'RandomGenerationRound',
+            'type': 'GPSelectionRound',
             'params': {
                 'number_of_variants': 10,
                 'features': 'ResiduePhysicalFeatures',
