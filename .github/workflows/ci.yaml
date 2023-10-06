@@ -30,3 +30,8 @@ jobs:
     - name: Run tests
       run: |
         pytest --cov=aide  # Adjust if you have a specific command or flags to run your tests
+
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v3
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
