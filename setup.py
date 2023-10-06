@@ -29,6 +29,7 @@ setup(
             "flake8",
             "jupyter",
             "pytest",
+            "pytest-cov",
             "sphinx",
         ]
     },

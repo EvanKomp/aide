@@ -29,4 +29,4 @@ jobs:
 
     - name: Run tests
       run: |
-        pytest  # Adjust if you have a specific command or flags to run your tests
+        pytest --cov=aide  # Adjust if you have a specific command or flags to run your tests
