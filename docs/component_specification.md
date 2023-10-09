@@ -183,5 +183,20 @@ Libraries are loaded and saved to the database. Scheme for a campaign:
 - `get_rounds_by_status(self, status: str) -> List[Round]`: Return a list of all rounds in the database with the given status.
 - `get_current_round(self) -> Round`: Return the latest round that is at least ready.
 
+## Package Structure
 
-
+```
+base/variants.py - Defines the Variant and mutations class, which is the basic unit of a library.
+base/library.py - Defines the Library class, which is a collection of variants.
+base/estimators.py - Defines abstract classes for estimators, which are used to estimate the fitness of variants or generate variants
+base/library_generation.py - Defines abstract classes for library generation, which is used to generate a library from a parent library.
+base/library_aquisition.py - Defines abstract classes for library aquisition, which is used to score a library
+campaign/database.py - Defines the CampaignDatabase class, which is a database for a campaign.
+campaign/round.py - Defines the Round class, which is a step in the campaign.
+campaign/runner.py - Defines the Runner class, which is a collection of rounds.
+zoo/estimators/* - defines base estimators
+zoo/library_generation/* - defines library generation methods 
+zoo/library_aquisition/* - defines library aquisition methods
+zoo/rounds/* - defines rounds
+zoo/runners/* - defines runners from the literature
+```
