@@ -1,6 +1,6 @@
 
 # AI-assisted Directed Evolution Unifying Framework (AIDE) Summary
-![ci_pass](https://github.com/EvanKomp/aide/blob/main/.github/workflows/ci.yaml/badge.svg) [![codecov](https://codecov.io/gh/EvanKomp/aide/graph/badge.svg?token=JNCIVORJJ6)](https://codecov.io/gh/EvanKomp/aide)
+![ci_pass](https://github.com/EvanKomp/aide/actions/workflows/ci.yaml/badge.svg) [![codecov](https://codecov.io/gh/EvanKomp/aide/graph/badge.svg?token=JNCIVORJJ6)](https://codecov.io/gh/EvanKomp/aide)
 
 AIDE is a modular software project designed to integrate current and future AI techniques to expedite directed evolution campaigns. These campaigns aim to optimize proteins for specific properties using iterative mutation and evaluation, a process that can be resource-intensive and time-consuming. By incorporating AI methods, AIDE aims to reduce the number of evaluations needed.
 
