@@ -17,7 +17,7 @@
 These classes define proteins and functionality to apply mutations to those sequence strings. Data classes are utilized here.
 
 ### `Variant`
-- `__init__(self, parent_sequence: str=None,  mutation: Union[Mutation, MutationSet], id: str=None)`: Initialize with a sequence.
+- `__init__(self, parent_sequence: Union[None, str, Variant]=None,  mutation: Union[Mutation, MutationSet, str], id: str=None)`: Initialize with a sequence.
     - Notes: if not given, id is hash of parent + mutated sequence.
 - `add_mutations(self, mutation: Union[Mutation, MutationSet])`: Add a mutation to the variant.
 - `__str__(self) -> str`: Return the current sequence. Applies each mutation to the parent sequence
@@ -34,6 +34,7 @@ These classes define proteins and functionality to apply mutations to those sequ
 ### `MutationSet`
 - `__init__(self, mutations: List[Mutation])`: Initialize with a list of mutations.
 - `from_string(cls, parent: Union[Variant, str], mutation_string: str) -> MutationSet`: Initialize from a mutation string. Capable of handling semi colon seperated lists of mutations.
+- `__str__(self) -> str`: Return a string of the mutations.
 - `union(self, other: MutationSet) -> MutationSet`: Return the union of two mutation sets.
 - `intersection(self, other: MutationSet) -> MutationSet`: Return the intersection of two mutation sets.
 - `difference(self, other: MutationSet) -> MutationSet`: Return the difference of two mutation sets.
