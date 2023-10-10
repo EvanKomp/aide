@@ -38,6 +38,7 @@ These classes define proteins and functionality to apply mutations to those sequ
 - `union(self, other: MutationSet) -> MutationSet`: Return the union of two mutation sets.
 - `intersection(self, other: MutationSet) -> MutationSet`: Return the intersection of two mutation sets.
 - `difference(self, other: MutationSet) -> MutationSet`: Return the difference of two mutation sets.
+- `get_variant_str(self) -> str`: Return the string of the variant. See apply below.
 - `apply(self) -> Variant`: Apply the mutations to the variant, returns a new Variant. Careful with positioning, break into list first.
 
 ---
