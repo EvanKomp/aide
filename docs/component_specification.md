@@ -17,11 +17,16 @@
 These classes define proteins and functionality to apply mutations to those sequence strings. Data classes are utilized here.
 
 ### `Variant`
-- `__init__(self, parent_sequence: Union[None, str, Variant]=None,  mutation: Union[Mutation, MutationSet, str], id: str=None)`: Initialize with a sequence.
+- `__init__(self, sequence: Union[str, Variant],  mutation: Union[Mutation, MutationSet, str], id: str=None)`: Initialize with a sequence.
     - Notes: if not given, id is hash of parent + mutated sequence.
 - `add_mutations(self, mutation: Union[Mutation, MutationSet])`: Add a mutation to the variant.
 - `__str__(self) -> str`: Return the current sequence. Applies each mutation to the parent sequence
 - `parse_mutations(self, other: Variant, expect_indels: bool=False, **blast_params) -> MutationSet`: Return a list of mutations that differ from another variant. If all mutations are single point, this is easy, but if there are insertions or deletions, this is more complicated.
+- `parent -> Variant`: Return the parent variant if present
+- `mutations -> MutationSet`: Return the mutations applied to the parent variant
+- `id -> str`: Return the id of the variant if present, otherwise the hash of the variant
+- `base_sequence`: Return the base sequence of the variant, without mutations applied
+- `hash -> str`: Return the hash of the variant, determined by the sequence after mutations are applied
 
 ### `Mutation`
 - `__init__(self, parent: Variant, mutation_string: str)`: Initialize with a mutation string (e.g., 'A132M').
@@ -38,7 +43,7 @@ These classes define proteins and functionality to apply mutations to those sequ
 - `union(self, other: MutationSet) -> MutationSet`: Return the union of two mutation sets.
 - `intersection(self, other: MutationSet) -> MutationSet`: Return the intersection of two mutation sets.
 - `difference(self, other: MutationSet) -> MutationSet`: Return the difference of two mutation sets.
-- `get_variant_str(self) -> str`: Return the string of the variant. See apply below.
+- `get_variant_str(self) -> str`: Return the string of the variant. See apply
 - `apply(self) -> Variant`: Apply the mutations to the variant, returns a new Variant. Careful with positioning, break into list first.
 
 ---

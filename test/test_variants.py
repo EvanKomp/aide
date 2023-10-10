@@ -7,12 +7,12 @@ class TestVariant(unittest.TestCase):
         self.parent_seq = Variant('MAGV')
 
     def test_add_mutations(self):
-        mutation = Mutation(self.parent_seq, 'A2[TM]')
+        mutation = Mutation('A2[TM]')
         self.parent_seq.add_mutations(mutation)
         self.assertEqual(str(self.parent_seq), 'MTMGV')
 
     def test_add_mutation_set(self):
-        mutation_set = MutationSet.from_string(self.parent_seq, 'A2[TM];G3[ST]')
+        mutation_set = MutationSet.from_string('A2[TM];G3[ST]')
         self.parent_seq.add_mutations(mutation_set)
         self.assertEqual(str(self.parent_seq), 'MTMSTV')
 
@@ -44,7 +44,7 @@ class TestVariant(unittest.TestCase):
         self.assertNotEqual(variant1, variant3)
 
     def test_parent(self):
-        variant = Variant(self.parent_seq, mutation='A2[TM]')
+        variant = Variant(mutation='A2[TM]')
         self.assertEqual(variant.parent, self.parent_seq)
         
 
@@ -90,24 +90,24 @@ class TestMutationSet(unittest.TestCase):
 
     def test_get_variant_str(self):
         variant_str = self.mutation_set.get_variant_str(self.parent_seq)
-        self.assertEqual(str(variant), 'MTMSTV')
+        self.assertEqual(str(variant_str), 'MTMSTV')
 
     def test_in(self):
-        mutation = Mutation(self.parent_seq, 'A2[TM]')
+        mutation = Mutation('A2[TM]')
         self.assertIn(mutation, self.mutation_set)
 
     def test_not_in(self):
-        mutation = Mutation(self.parent_seq, 'A2M')
+        mutation = Mutation('A2M')
         self.assertNotIn(mutation, self.mutation_set)
 
     def test_eq(self):
-        mutation_set1 = MutationSet.from_string(self.parent_seq, 'A2[TM];G3[ST]')
-        mutation_set2 = MutationSet.from_string(self.parent_seq, 'A2[TM];G3[ST]')
+        mutation_set1 = MutationSet.from_string('A2[TM];G3[ST]')
+        mutation_set2 = MutationSet.from_string('A2[TM];G3[ST]')
         self.assertEqual(mutation_set1, mutation_set2)
 
     def test_ne(self):
-        mutation_set1 = MutationSet.from_string(self.parent_seq, 'A2[TM];G3[ST]')
-        mutation_set2 = MutationSet.from_string(self.parent_seq, 'A2[TM];G3[ST];V4G')
+        mutation_set1 = MutationSet.from_string('A2[TM];G3[ST]')
+        mutation_set2 = MutationSet.from_string('A2[TM];G3[ST];V4G')
         self.assertNotEqual(mutation_set1, mutation_set2)
 
         other_parent_seq = Variant('MAVG')
@@ -115,27 +115,35 @@ class TestMutationSet(unittest.TestCase):
         self.assertNotEqual(mutation_set1, mutation_set3)
 
     def test_union(self):
-        mutation_set1 = MutationSet.from_string(self.parent_seq, 'A2[TM];G3[ST]')
-        mutation_set2 = MutationSet.from_string(self.parent_seq, 'A2[TM];G3[ST];V4G')
-        mutation_set3 = mutation_set1.union(mutation_set2)
-        self.assertEqual(mutation_set3), MutationSet.from_string(self.parent_seq, 'A2[TM];G3[ST];V4G')
+        mutation_set1 = MutationSet.from_string('A2[TM];G3[ST]')
+        mutation_set2 = MutationSet.from_string('A2[TM];G3[ST];V4G')
+        mutation_set3 = mutation_set1 | mutation_set2
+        self.assertEqual(mutation_set3), MutationSet.from_string('A2[TM];G3[ST];V4G')
 
     def test_intersection(self):
-        mutation_set1 = MutationSet.from_string(self.parent_seq, 'A2[TM];G3[ST]')
-        mutation_set2 = MutationSet.from_string(self.parent_seq, 'A2[TM];G3[ST];V4G')
-        mutation_set3 = mutation_set1.intersection(mutation_set2)
-        self.assertEqual(mutation_set3), MutationSet.from_string(self.parent_seq, 'A2[TM];G3[ST]')
+        mutation_set1 = MutationSet.from_string('A2[TM];G3[ST]')
+        mutation_set2 = MutationSet.from_string('A2[TM];G3[ST];V4G')
+        mutation_set3 = mutation_set1 & mutation_set2
+        self.assertEqual(mutation_set3), MutationSet.from_string('A2[TM];G3[ST]')
 
     def test_difference(self):
-        mutation_set1 = MutationSet.from_string(self.parent_seq, 'A2[TM];G3[ST]')
-        mutation_set2 = MutationSet.from_string(self.parent_seq, 'A2[TM];G3[ST];V4G')
-        mutation_set3 = mutation_set2.difference(mutation_set1)
-        self.assertEqual(mutation_set3, MutationSet.from_string(self.parent_seq, 'V4G'))
+        mutation_set1 = MutationSet.from_string('A2[TM];G3[ST]')
+        mutation_set2 = MutationSet.from_string('A2[TM];G3[ST];V4G')
+        mutation_set3 = mutation_set2 - mutation_set1
+        self.assertEqual(mutation_set3, MutationSet.from_string('V4G'))
 
-    def test_apply(self):
-        mutation_set = MutationSet.from_string(self.parent_seq, 'A2M;G3S')
-        variant = mutation_set.apply()
-        self.assertEqual(variant, Variant('MMSG'))
+    def test_get_variant_str(self):
+        variant_str = self.mutation_set.get_variant_str(self.parent_seq)
+        self.assertEqual(str(variant_str), 'MTMSTV')
+
+    def test_get_variant_str_hard(self):
+        parent = Variant('MAVGGVMDEYLMGY')
+        mutation_set = MutationSet.from_string(
+            '[AVG]2-;G5M;D8[DYG];G13V;Y14-')
+        variant_str = mutation_set.get_variant_str(parent)
+        self.assertEqual(
+            variant_str,
+            'MMVMDYGEYLMV')
 
 
 if __name__ == '__main__':
