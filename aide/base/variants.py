@@ -3,7 +3,7 @@
 import re
 
 from __future__ import annotations
-from typing import Union
+from typing import Union, List
 
 class Variant:
     """A protein sequence with a unique identifier.
@@ -122,8 +122,6 @@ class Mutation:
     
     Params
     ------
-    parent : Variant
-        The parent variant of the mutation.
     position : int
         The position of the mutation.
     ref : str
@@ -131,33 +129,28 @@ class Mutation:
     alt : str
         The alternate amino acid.
     """
-    def __init__(self, parent: Variant, position: int, ref: str, alt: str):
-        self.parent = parent
+    def __init__(self, position: int, ref: str, alt: str):
         self.position = position
         self.ref = ref
         self.alt = alt
-        self._check_validity()
-
 
     @property
     def initial_width(self):
         """The width of the mutation before accounting for indels."""
         return len(self.ref)
 
-    def _check_validity(self):
-        if str(self.parent)[self.position:self.position + self.initial_width] != self.ref:
+    def _check_validity(self, variant: Variant):
+        if str(variant)[self.position:self.position + self.initial_width] != self.ref:
             raise ValueError('The reference amino acid does not match the parent sequence.')
-        
-    @classmethod
-    def from_string(cls, parent: Variant, mutation: str):
-        """Create a mutation from a string.
+    
+    @staticmethod
+    def _parse_mutation_string(string):
+        """Parse a mutation string into a mutation.
         
         Params
         ------
-        parent : Variant
-            The parent variant of the mutation.
-        mutation : str
-            The mutation string in the form of 'ref_pos_alt'.
+        string : str
+            The mutation string in the form of '<ref><pos: int><alt>'.
         
         Returns
         -------
@@ -170,6 +163,148 @@ class Mutation:
         # A2[MV] -> A, 2, MV
         # A2- -> A, 2, -
         # [AV]2[--] -> AV, 2, --
-        # 
+        pattern = r'(?P<ref>\[?[A-Z]+\]?)?(?P<pos>\d+)(?P<alt>\[?[A-Z-]+\]?)'
+        match = re.match(pattern, string)
+        
+        if match:
+            # Extracting matched groups
+            ref = match.group('ref').replace('[', '').replace(']', '')
+            pos = int(match.group('pos'))
+            alt = match.group('alt').replace('[', '').replace(']', '')
+        else:
+            raise ValueError(f"Invalid mutation string: {string}")
+
+        return ref, pos, alt
+
+    @classmethod
+    def from_string(cls, mutation: str, zero_indexed: bool=True):
+        """Create a mutation from a string.
+        
+        Params
+        ------
+        mutation : str
+            The mutation string in the form of '<ref><pos: int><alt>'.
+        zero_indexed : bool
+            Whether the position is zero indexed or not.
+        
+        Returns
+        -------
+        Mutation
+            The mutation object.
+        """
+        ref, pos, alt = cls._parse_mutation_string(mutation)
+        if not zero_indexed:
+            pos -= 1
+        return cls(pos, ref, alt)
+    
+    def __str__(self):
+        if len(self.ref) == 1:
+            ref = self.ref
+        else:
+            ref = f'[{self.ref}]'
+
+        if len(self.alt) == 1:
+            alt = self.alt
+        else:
+            alt = f'[{self.alt}]'
+        return f'{ref}{self.position}{alt}'
+
+    @staticmethod
+    def _remove_gaps(sequence):
+        """Remove gaps from a sequence.
+        
+        Params
+        ------
+        sequence : str
+            The sequence to remove gaps from.
+        
+        Returns
+        -------
+        str
+            The sequence without gaps.
+        """
+        return sequence.replace('-', '')
+
+    def _get_variant_list(self, variant: Variant):
+        """Convert the sequence of the variant into a list with the correct positions.
+        
+        This is a little bid hard when the reference in the mutation is multiple amino acids.
+        Eg. [AM]1V. We need to keep AM together to replace it, but also we don't want to shift
+        the other positions. So we need to add 'gaps' to the sequence to keep the positions
+        """
+        if self.initial_width == 1:
+            return list(variant)
+        else:
+            # must keep the width together and append gaps
+            # eg. for sequence AMV, and mutation [AM]0V -> ['AM', '-', 'V']
+            output = []
+            for i, aa in enumerate(str(variant)):
+                if i == self.position:
+                    output.append(self.ref)
+                    output.extend(['-'] * (self.initial_width - 1))
+                else:
+                    output.append(aa)
+            return output  
+
+    def _update_variant_list(self, aa_list: List[str]):
+        """Update a list of amino acids by the mutation.
+        """
+        aa_list[self.position] = self.alt
+
+    def get_variant_str(self, variant: Variant):
+        """Parse the protein sequence after the mutation has been applied.
+
+        Params
+        ------
+        variant : Variant
+            The variant to parse.
+        """
+        # check the variant against the sequence
+        self._check_validity(variant)
+
+        aa_list = self._get_variant_list(variant)
+        self._update_variant_list(aa_list)
+        output_seq = ''.join(aa_list)
+        output_seq = self._remove_gaps(output_seq)
+        return output_seq
+    
+
+class MutationSet:
+    """A set of mutations.
+    
+    Params
+    ------
+    mutations : List[Mutation]
+        The list of mutations.
+    """
+
+    def __init__(self, mutations: List[Mutation]):
+        # check the correct type
+        for mutation in mutations:
+            if not isinstance(mutation, Mutation):
+                raise ValueError('mutations must be a list of Mutation objects.')
+        self.mutations = mutations
+
+    @classmethod
+    def from_string(cls, mutations: Union[str, List[str]], zero_indexed: bool=True):
+        """Create a mutation set from a string or list of strings.
+        
+        Params
+        ------
+        mutations : Union[str, List[str]]
+            The mutation string or list of mutation strings.
+            If a single string, the mutations are separated by semicolons.
+        zero_indexed : bool
+            Whether the position is zero indexed or not.
+        """
+        if isinstance(mutations, str):
+            mutations = mutations.split(';')
+        return cls([Mutation.from_string(mutation, zero_indexed) for mutation in mutations])
+
+
+        
+
+        
+        
         
         

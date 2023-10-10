@@ -42,6 +42,10 @@ class TestVariant(unittest.TestCase):
 
         variant3 = Variant('MAGV', mutation='A2[TM]')
         self.assertNotEqual(variant1, variant3)
+
+    def test_parent(self):
+        variant = Variant(self.parent_seq, mutation='A2[TM]')
+        self.assertEqual(variant.parent, self.parent_seq)
         
 
 class TestMutation(unittest.TestCase):
