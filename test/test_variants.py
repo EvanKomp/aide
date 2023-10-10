@@ -53,47 +53,43 @@ class TestMutation(unittest.TestCase):
         self.parent_seq = Variant('MAGV')
 
     def test_apply_subst(self):
-        mutation = Mutation(self.parent_seq, 'A2M')
-        variant = mutation.apply()
-        self.assertEqual(variant, Variant('MMGV'))
+        mutation = Mutation('A2M')
+        variant_seq = mutation.get_variant_str(self.parent_seq)
+        self.assertEqual(variant_seq, 'MMGV')
 
     def test_apply_del(self):
-        mutation = Mutation(self.parent_seq, 'A2[-]')
-        variant = mutation.apply()
-        self.assertEqual(variant, Variant('AGV'))
+        mutation = Mutation('A2[-]')
+        variant_seq = mutation.get_variant_str(self.parent_seq)
+        self.assertEqual(variant_seq, 'AGV')
 
     def test_apply_multi_del(self):
-        mutation = Mutation(self.parent_seq, '[AG]2[--]')
-        variant = mutation.apply()
-        self.assertEqual(variant, Variant('MV'))
+        mutation = Mutation('[AG]2[--]')
+        variant_seq = mutation.get_variant_str(self.parent_seq)
+        self.assertEqual(variant_seq, 'MV')
 
     def test_apply_ins(self):
-        mutation = Mutation(self.parent_seq, 'A2[AT]')
-        variant = mutation.apply()
-        self.assertEqual(variant, Variant('MATGV'))
+        mutation = Mutation('A2[AT]')
+        variant_seq = mutation.get_variant_str(self.parent_seq)
+        self.assertEqual(variant_seq, 'MATGV')
 
     def test_eq(self):
-        mutation1 = Mutation(self.parent_seq, 'A2M')
-        mutation2 = Mutation(self.parent_seq, 'A2M')
+        mutation1 = Mutation('A2M')
+        mutation2 = Mutation('A2M')
         self.assertEqual(mutation1, mutation2)
 
     def test_ne(self):
-        mutation1 = Mutation(self.parent_seq, 'A2M')
-        mutation2 = Mutation(self.parent_seq, 'A2[-]')
+        mutation1 = Mutation('A2M')
+        mutation2 = Mutation('A2[-]')
         self.assertNotEqual(mutation1, mutation2)
-
-        other_parent_seq = Variant('MAVG')
-        mutation3 = Mutation(other_parent_seq, 'A2M')
-        self.assertNotEqual(mutation1, mutation3)
 
 
 class TestMutationSet(unittest.TestCase):
     def setUp(self):
         self.parent_seq = Variant('MAGV')
-        self.mutation_set = MutationSet.from_string(self.parent_seq, 'A2[TM];G3[ST]')
+        self.mutation_set = MutationSet.from_string('A2[TM];G3[ST]')
 
-    def test_apply(self):
-        variant = self.mutation_set.apply()
+    def test_get_variant_str(self):
+        variant_str = self.mutation_set.get_variant_str(self.parent_seq)
         self.assertEqual(str(variant), 'MTMSTV')
 
     def test_in(self):

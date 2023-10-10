@@ -1,9 +1,10 @@
 """Base classes for dealing with protein sequences.
 """
-import re
-
 from __future__ import annotations
-from typing import Union, List
+import re
+from typing import Union, List, Iterable
+from dataclasses import dataclass
+from collections.abc import MutableSet, Hashable
 
 class Variant:
     """A protein sequence with a unique identifier.
@@ -116,7 +117,7 @@ class Variant:
     def __eq__(self, other: Variant):
         return str(self) == str(other)
     
-
+@dataclass(frozen=True, eq=True)
 class Mutation:
     """A single mutation.
     
@@ -129,10 +130,12 @@ class Mutation:
     alt : str
         The alternate amino acid.
     """
-    def __init__(self, position: int, ref: str, alt: str):
-        self.position = position
-        self.ref = ref
-        self.alt = alt
+    position: int
+    ref: str
+    alt: str
+
+    def __repr__(self):
+        return f'Mutation({str(self)})'
 
     @property
     def initial_width(self):
@@ -268,8 +271,7 @@ class Mutation:
         output_seq = self._remove_gaps(output_seq)
         return output_seq
     
-
-class MutationSet:
+class MutationSet(MutableSet, Hashable):
     """A set of mutations.
     
     Params
@@ -277,13 +279,43 @@ class MutationSet:
     mutations : List[Mutation]
         The list of mutations.
     """
+    __hash__ = MutableSet._hash
 
     def __init__(self, mutations: List[Mutation]):
         # check the correct type
         for mutation in mutations:
             if not isinstance(mutation, Mutation):
                 raise ValueError('mutations must be a list of Mutation objects.')
-        self.mutations = mutations
+        mutation_set = set(mutations)
+        # check than non of the positions overlap
+        self._check_unique_mutation_positions(mutation_set)
+        self.mutations = mutation_set
+
+    def __repr__(self):
+        return f'MutationSet({self.mutations})'
+
+    @staticmethod
+    def _check_unique_mutation_positions(mutations: Iterable[Mutation]):
+        positions = [mutation.position for mutation in mutations]
+        if not len(set(positions)) == len(positions):
+            raise ValueError('The mutation positions must be unique, but some are applied to the same position.')
+
+
+    # MutableSet methods
+    def __contains__(self, mutation: Mutation):
+        return mutation in self.mutations
+    
+    def __iter__(self):
+        return iter(self.mutations)
+    
+    def __len__(self):
+        return len(self.mutations)
+    
+    def add(self, mutation: Mutation):
+        self.mutations.add(mutation)
+
+    def discard(self, mutation: Mutation):
+        self.mutations.discard(mutation)
 
     @classmethod
     def from_string(cls, mutations: Union[str, List[str]], zero_indexed: bool=True):
@@ -300,6 +332,8 @@ class MutationSet:
         if isinstance(mutations, str):
             mutations = mutations.split(';')
         return cls([Mutation.from_string(mutation, zero_indexed) for mutation in mutations])
+    
+
 
 
         
