@@ -1,5 +1,7 @@
 """Base classes for dealing with protein sequences.
 """
+import re
+
 from __future__ import annotations
 from typing import Union
 
@@ -113,4 +115,61 @@ class Variant:
     
     def __eq__(self, other: Variant):
         return str(self) == str(other)
+    
+
+class Mutation:
+    """A single mutation.
+    
+    Params
+    ------
+    parent : Variant
+        The parent variant of the mutation.
+    position : int
+        The position of the mutation.
+    ref : str
+        The reference amino acid.
+    alt : str
+        The alternate amino acid.
+    """
+    def __init__(self, parent: Variant, position: int, ref: str, alt: str):
+        self.parent = parent
+        self.position = position
+        self.ref = ref
+        self.alt = alt
+        self._check_validity()
+
+
+    @property
+    def initial_width(self):
+        """The width of the mutation before accounting for indels."""
+        return len(self.ref)
+
+    def _check_validity(self):
+        if str(self.parent)[self.position:self.position + self.initial_width] != self.ref:
+            raise ValueError('The reference amino acid does not match the parent sequence.')
+        
+    @classmethod
+    def from_string(cls, parent: Variant, mutation: str):
+        """Create a mutation from a string.
+        
+        Params
+        ------
+        parent : Variant
+            The parent variant of the mutation.
+        mutation : str
+            The mutation string in the form of 'ref_pos_alt'.
+        
+        Returns
+        -------
+        Mutation
+            The mutation object.
+        """
+        # need regular expressions to parse the mutation
+        # examples of ref, pos, and alt:
+        # A2M -> A, 2, M
+        # A2[MV] -> A, 2, MV
+        # A2- -> A, 2, -
+        # [AV]2[--] -> AV, 2, --
+        # 
+        
         
