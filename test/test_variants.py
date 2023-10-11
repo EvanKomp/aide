@@ -45,7 +45,32 @@ class TestVariant(unittest.TestCase):
 
     def test_parent(self):
         variant = Variant(self.parent_seq, mutation='A2[TM]')
-        self.assertEqual(variant.parent, self.parent_seq)
+        self.assertTrue(variant.parent is self.parent_seq)
+
+    def test_cut_parent(self):
+        variant = Variant(self.parent_seq, mutation='A2[TM]')
+        variant.cut_parent()
+        self.assertTrue(variant.parent is None)
+        self.assertTrue(str(variant) == 'MTMGV')
+
+    def test_cut_children(self):
+        variant = Variant(self.parent_seq, mutation='A2[TM]')
+        self.parent_seq.cut_children()
+        self.assertTrue(len(self.parent_seq.children) == 0)
+        self.assertTrue(variant.parent is None)
+
+    def test_propegate(self):
+        variant = self.parent_seq.propegate(mutations = 'A2[TM]', id='test')
+        self.assertEqual(str(variant), 'MTMGV')
+        self.assertEqual(variant.id, 'test')
+        self.assertTrue(variant.parent is self.parent_seq)
+        self.assertTrue(id(variant) in self.parent_seq.children)
+    
+    def test_immutable_parent(self):
+        variant = Variant(self.parent_seq, mutation='A2[TM]')
+        with self.assertRaises(ValueError):
+            self.parent_seq.add_mutations(Mutation('V3G'))
+
         
 
 class TestMutation(unittest.TestCase):

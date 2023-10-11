@@ -36,17 +36,34 @@ class Variant:
     id : str
         The unique identifier of the variant. If none given, the id is
         computed as a hash of the sequence and mutations.
+    mutatable : bool
+        Whether the variant is mutatable. If False, the variant is
+        immutable and cannot be mutated. Note that when a variant becomes
+        a parent of another variant, it becomes immutaatable.
     """
     def __init__(
         self,
         sequence: Union[None, str, Variant] = None,
         mutations: Union[None, str, MutationSet, Mutation] = None,
         id: Union[None, str] = None,
+        mutatable: bool = True,
     ):
         self._base_sequence = None
         self._parent = None
-        self._children = set()
+        self._id = id
+        self._mutatable = mutatable
+        self._children = {}
         self.mutations = MutationSet()
+
+        # we are going to keep track of a hidden variable that is a hash of the
+        # mutations assigned to the variant. Since the string/output sequence of
+        # a variant is defined dynamically based on the parent, a long line of
+        # parantage could lead to suboptimal repeat computation. By keeping track
+        # the mutation hash since the last time we called __str__, we can can check
+        # if the mutations have changed and only recompute if they have. See __str__
+        # below for more details.
+        self._str = None
+        self._mutation_hash_last_str_call = None
 
         # If we have just a sequence, we have our base sequence
         # if a parent was passed, the base sequnce comes from that
@@ -62,24 +79,14 @@ class Variant:
         if isinstance(mutations, Mutation):
             to_add = MutationSet([mutations])
         elif mutations is None:
-            pass
+            to_add = MutationSet()
         elif isinstance(mutations, MutationSet):
             to_add = mutations
         elif type(mutations) == str:
-            to_add = MutationSet.from_string(self, mutations)
+            to_add = MutationSet.from_string(mutations)
         else:
             raise ValueError('mutations must be a MutationSet, Mutation, or str')
         self.add_mutations(to_add)
-
-        # we are going to keep track of a hidden variable that is a hash of the
-        # mutations assigned to the variant. Since the string/output sequence of
-        # a variant is defined dynamically based on the parent, a long line of
-        # parantage could lead to suboptimal repeat computation. By keeping track
-        # the mutation hash since the last time we called __str__, we can can check
-        # if the mutations have changed and only recompute if they have. See __str__
-        # below for more details.
-        self._str = None
-        self._mutation_hash_last_str_call = None
 
     @property
     def parent(self) -> Variant:
@@ -90,10 +97,18 @@ class Variant:
     def base_sequence(self) -> str:
         """The sequence of the variant without mutations."""
         if self.parent is not None:
-            return self(self.parent)
+            return str(self.parent)
         else:
             return self._base_sequence
-        
+
+    @property
+    def id(self) -> str:
+        """The unique identifier of the variant."""
+        if self._id is None:
+            return hash(self)
+        else:
+            return self._id
+
     @property
     def children(self) -> Set[Variant]:
         """The children variants of the variant."""
@@ -107,12 +122,33 @@ class Variant:
         child : Variant
             The child variant to add.
         """
-        self._children.add(child)
+        self._children[id(child)] = child
+
+    def _remove_child(self, child: Variant):
+        self._children.pop(id(child))
+
+    def cut_children(self):
+        """Remove the reference to all children.
+        """
+        for child in list(self.children.values()):
+            child.cut_parent()
+
+    def cut_parent(self):
+        if self.parent is not None:
+            parent_sequence = str(self.parent)
+            self.parent._remove_child(self)
+            self._parent = None
+            self._base_sequence = parent_sequence
+        else:
+            raise ValueError('Cannot cut parent of a variant without a parent.')
 
     @property
     def mutatable(self) -> bool:
-        return len(self.children) == 0
-        
+        return len(self.children) == 0 and self._mutatable
+    
+    def __repr__(self):
+        return f'Variant(id={self.id})'
+
     def __str__(self):
         # if we have never called this before we need to bite the bullet
         if self._str is None:
@@ -130,10 +166,16 @@ class Variant:
         return self._str
     
     def __hash__(self):
-        return hash([self.base_sequence, self.mutations])
+        if self._id is not None:
+            return hash(self._id)
+        else:
+            return hash((self.base_sequence, self.mutations))
     
     def __eq__(self, other: Variant):
         return str(self) == str(other)
+    
+    def __neq__(self, other: Variant):
+        return str(self) != str(other)
     
     def __contains__(self, mutation: Mutation):
         return mutation in self.mutations
@@ -160,7 +202,7 @@ class Variant:
         else:
             raise ValueError('mutations must be a MutationSet or Mutation')
         
-        new_mutations = self.mutations + mutations
+        new_mutations = self.mutations | mutations
         new_mutations._check_validity(self)
         self.mutations = new_mutations
 
@@ -182,7 +224,7 @@ class Variant:
         bool
             Whether the variant is a descendant of the other variant.
         """
-        if only_parent
+        if only_parent:
             return self.parent == other
         else:
             current = self
@@ -209,15 +251,16 @@ class Variant:
         """
         return other.is_descendant_of(self, only_parent=only_parent)
     
-    def propegate(self, mutations: Union[MutationSet, Mutation, str, None] = None):
-        """Propegate mutations to all children.
+    def propegate(self, mutations: Union[MutationSet, Mutation, str, None] = None, id: str = None):
+        """Create a new variant with the called variant as the parent.
         
         Params
         ------
         mutations : Union[MutationSet, Mutation]
             The mutations to propegate.
         """
-        child = 
+        child = self.__class__(self, mutations=mutations, id=id)
+        return child
     
 @dataclass(frozen=True, eq=True)
 class Mutation:
