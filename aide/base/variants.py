@@ -2,7 +2,7 @@
 """
 from __future__ import annotations
 import re
-from typing import Union, List, Iterable
+from typing import Union, List, Iterable, Set
 from dataclasses import dataclass
 from collections.abc import MutableSet, Hashable
 
@@ -26,7 +26,9 @@ class Variant:
     base_sequence : str
         The sequence of the variant without mutations.
     parent : Variant or None
-        The parent variant of the variant, if present
+        The parent variant of the variant, if present. Immutable. 
+    children : Set[Variant]
+        The children variants of the variant. Immutable.
     mutations : MutationSet
         The mutations that define the variant.
     hash : int
@@ -43,37 +45,41 @@ class Variant:
     ):
         self._base_sequence = None
         self._parent = None
-        self.mutations = None
-        # any mutations passed need to be parsed to mutation sets
-        # if they are already a MutationSet, then the parent is already
-        # determined. Parse from string after we have a base sequence
-        
-        if isinstance(mutations, Mutation):
-            self.mutations = MutationSet([mutations])
-        elif mutations is None:
-            pass
-        elif isinstance(mutations, MutationSet):
-            self.mutations = mutations
-        elif type(mutations) == str:
-            self.mutations = MutationSet.from_string(self, mutations)
-        else:
-            raise ValueError('mutations must be a MutationSet, Mutation, or str')
-        
+        self._children = set()
+        self.mutations = MutationSet()
+
         # If we have just a sequence, we have our base sequence
         # if a parent was passed, the base sequnce comes from that
         if isinstance(sequence, str):
             self._base_sequence = sequence
         elif isinstance(sequence, Variant):
             self._parent = sequence
+            sequence._add_child(self)
         else:
             raise ValueError('sequence must be a str or Variant')
 
-        # check that any mutations are valid for this sequnce
-        if self.mutations is not None:
-            if self.mutations.parent != self:
-                raise ValueError('The parent of the mutations must be the same as the parent of the variant.')
+        # any mutations passed need to be added
+        if isinstance(mutations, Mutation):
+            to_add = MutationSet([mutations])
+        elif mutations is None:
+            pass
+        elif isinstance(mutations, MutationSet):
+            to_add = mutations
+        elif type(mutations) == str:
+            to_add = MutationSet.from_string(self, mutations)
         else:
-            self.mutations = MutationSet(self)
+            raise ValueError('mutations must be a MutationSet, Mutation, or str')
+        self.add_mutations(to_add)
+
+        # we are going to keep track of a hidden variable that is a hash of the
+        # mutations assigned to the variant. Since the string/output sequence of
+        # a variant is defined dynamically based on the parent, a long line of
+        # parantage could lead to suboptimal repeat computation. By keeping track
+        # the mutation hash since the last time we called __str__, we can can check
+        # if the mutations have changed and only recompute if they have. See __str__
+        # below for more details.
+        self._str = None
+        self._mutation_hash_last_str_call = None
 
     @property
     def parent(self) -> Variant:
@@ -88,8 +94,49 @@ class Variant:
         else:
             return self._base_sequence
         
+    @property
+    def children(self) -> Set[Variant]:
+        """The children variants of the variant."""
+        return self._children
+    
+    def _add_child(self, child: Variant):
+        """Add a child to the variant.
+        
+        Params
+        ------
+        child : Variant
+            The child variant to add.
+        """
+        self._children.add(child)
+
+    @property
+    def mutatable(self) -> bool:
+        return len(self.children) == 0
+        
     def __str__(self):
-        self.mutations.get_variant_str()
+        # if we have never called this before we need to bite the bullet
+        if self._str is None:
+            recompute = True
+        # otherwise, we only need to recompute if mutations have changed
+        else:
+            if self._mutation_hash_last_str_call != hash(self.mutations):
+                recompute = True
+            else:
+                recompute = False
+
+        if recompute:
+            self._str = self.mutations.get_variant_str(self)
+            self._mutation_hash_last_str_call = hash(self.mutations)
+        return self._str
+    
+    def __hash__(self):
+        return hash([self.base_sequence, self.mutations])
+    
+    def __eq__(self, other: Variant):
+        return str(self) == str(other)
+    
+    def __contains__(self, mutation: Mutation):
+        return mutation in self.mutations
     
     def add_mutations(self, mutations: Union[MutationSet, Mutation]):
         """Add mutations to the variant.
@@ -99,6 +146,12 @@ class Variant:
         mutations : Union[MutationSet, Mutation]
             The mutations to add to the variant.
         """
+        # check that the sequence is mutatable
+        # if it has children, messing up with the sequence by adding mutations
+        # will mess up the children. Does not make sense anyway, this sequence is set/
+        if not self.mutatable:
+            raise ValueError('Cannot mutate a variant with children.')
+
         # first convert to MutationSet
         if isinstance(mutations, Mutation):
             mutations = MutationSet([mutations])
@@ -107,13 +160,64 @@ class Variant:
         else:
             raise ValueError('mutations must be a MutationSet or Mutation')
         
-        self.mutations = self.mutations.union(mutations)
+        new_mutations = self.mutations + mutations
+        new_mutations._check_validity(self)
+        self.mutations = new_mutations
 
     def parse_mutations(self, other: Variant, expect_indels: bool=False, **blast_params):
         raise NotImplementedError('Need to write alignment method.')
     
-    def __eq__(self, other: Variant):
-        return str(self) == str(other)
+    def is_descendant_of(self, other: Variant, only_parent: bool=False):
+        """Whether the variant is a descendant of another variant.
+        
+        Params
+        ------
+        other : Variant
+            The other variant.
+        only_parent : bool
+            Whether to only check the parent variant.
+        
+        Returns
+        -------
+        bool
+            Whether the variant is a descendant of the other variant.
+        """
+        if only_parent
+            return self.parent == other
+        else:
+            current = self
+            while current.parent is not None:
+                if current.parent == other:
+                    return True
+                current = current.parent
+            return False
+        
+    def is_ancestor_of(self, other: Variant, only_parent: bool=False):
+        """Whether the variant is an ancestor of another variant.
+        
+        Params
+        ------
+        other : Variant
+            The other variant.
+        only_parent : bool
+            Whether to only check the parent variant.
+        
+        Returns
+        -------
+        bool
+            Whether the variant is an ancestor of the other variant.
+        """
+        return other.is_descendant_of(self, only_parent=only_parent)
+    
+    def propegate(self, mutations: Union[MutationSet, Mutation, str, None] = None):
+        """Propegate mutations to all children.
+        
+        Params
+        ------
+        mutations : Union[MutationSet, Mutation]
+            The mutations to propegate.
+        """
+        child = 
     
 @dataclass(frozen=True, eq=True)
 class Mutation:
@@ -279,7 +383,9 @@ class MutationSet(MutableSet, Hashable):
     """
     __hash__ = MutableSet._hash
 
-    def __init__(self, mutations: Iterable[Mutation]):
+    def __init__(self, mutations: Iterable[Mutation]=None):
+        if mutations is None:
+            mutations = []
         mutations = list(mutations)
         # check the correct type
         for mutation in mutations:
@@ -383,7 +489,12 @@ class MutationSet(MutableSet, Hashable):
         variant : Variant
             The variant to parse.
         """
-        self._check_validity(variant)
+        if variant.mutations == self:
+            # in this case we ran the check wehn we assigned it already, no need to
+            # do it again
+            pass
+        else:
+            self._check_validity(variant)
         
         aa_list = self._get_variant_base_list(variant)
         for mutation in self.mutations:
