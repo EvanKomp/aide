@@ -47,12 +47,14 @@ class Variant:
         mutations: Union[None, str, MutationSet, Mutation] = None,
         id: Union[None, str] = None,
         mutatable: bool = True,
+        label: Union[None, float] = None,
     ):
         self._base_sequence = None
         self._parent = None
         self._id = id
         self._mutatable = mutatable
         self._children = {}
+        self._label = label
         self.mutations = MutationSet()
 
         # we are going to keep track of a hidden variable that is a hash of the
@@ -96,10 +98,10 @@ class Variant:
     @property
     def base_sequence(self) -> str:
         """The sequence of the variant without mutations."""
-        if self.parent is not None:
-            return str(self.parent)
-        else:
+        if self._base_sequence is not None:
             return self._base_sequence
+        else:
+            return str(self.parent)
 
     @property
     def id(self) -> str:
@@ -145,6 +147,15 @@ class Variant:
     @property
     def mutatable(self) -> bool:
         return len(self.children) == 0 and self._mutatable
+    
+    @property
+    def label(self) -> float:
+        return self._label
+    
+    @label.setter
+    def label(self, label: float):
+        label = float(label)
+        self._label = label
     
     def __repr__(self):
         return f'Variant(id={self.id})'
@@ -259,8 +270,9 @@ class Variant:
         mutations : Union[MutationSet, Mutation]
             The mutations to propegate.
         """
-        child = self.__class__(self, mutations=mutations, id=id)
+        child = Variant(self, mutations=mutations, id=id)
         return child
+    
     
 @dataclass(frozen=True, eq=True)
 class Mutation:
