@@ -17,8 +17,9 @@
 These classes define proteins and functionality to apply mutations to those sequence strings. Data classes are utilized here.
 
 ### `Variant`
-- `__init__(self, sequence: Union[str, Variant],  mutation: Union[Mutation, MutationSet, str], id: str=None)`: Initialize with a sequence.
+- `__init__(self, sequence: Union[str, Variant],  mutation: Union[Mutation, MutationSet, str], id: str=None, mutatable: bool=True, label: float=None)`: Initialize with a sequence.
     - Notes: if not given, id is hash of parent + mutated sequence.
+    - Mutatable can be used to prevent new mutations being added. This is done automatically if the variant has children.
 - `add_mutations(self, mutation: Union[Mutation, MutationSet])`: Add a mutation to the variant.
 - `__str__(self) -> str`: Return the current sequence. Applies each mutation to the parent sequence
 - `parse_mutations(self, other: Variant, expect_indels: bool=False, **blast_params) -> MutationSet`: Return a list of mutations that differ from another variant. If all mutations are single point, this is easy, but if there are insertions or deletions, this is more complicated.
@@ -26,15 +27,29 @@ These classes define proteins and functionality to apply mutations to those sequ
 - `mutations -> MutationSet`: Return the mutations applied to the parent variant
 - `id -> str`: Return the id of the variant if present, otherwise the hash of the variant
 - `base_sequence`: Return the base sequence of the variant, without mutations applied
-- `hash -> str`: Return the hash of the variant, determined by the sequence after mutations are applied
+- `hash -> str`: Return the hash of the variant, determined by the sequence after mutations are applied. Or hash of ID if present.
+
+### `DBVariant(Variant)`
+Information is stored in a database and can be retrieved dynamically when called, but otherwise is not stored, such that we can track parents and children without storing all of the sequences in memory.
+
+- `__init__(self, db: CampaignDatabase, id: str)` overloaded base variant to first check if the variant is in the database, then if so, construct.
+- `base_sequence -> str`: Return the base sequence of the variant, without mutations applied, from the database. Does not store in memory.
+- `__str__ -> str` Overloaded to retrieve the sequence from the database. 
+- `mutations` Overloaded to retrieve the mutations from the database.
+- `mutatable` always False
+- `parent` overloaded to retrieve the parent from the database.
+- `children` overloaded to retrieve the children from the database.
+- `label` overloaded to set and retrieve from database and set. Only mutable quantity of a DBVariant.
+- `from_variant(cls, variant: Variant, db: CampaignDatabase) -> DBVariant`: Construct a DBVariant from a Variant. Uses CampaignDatabase methods. If the variant is already in the database, return that, otherwise add it to the database and return that.
 
 ### `Mutation`
-- `__init__(self, parent: Variant, mutation_string: str)`: Initialize with a mutation string (e.g., 'A132M').
+- `__init__(self, position: int, ref: str, alt: str)`
+- `from_string(self, mutation_string: str)`: Initialize with a mutation string (e.g., 'A132M').
     - Notes: 
       1. X can be used to indicate any amino acid, useful in combinatorial libraries.
       2. Brackets can be used to indicate indels, eg 'A132[AMVW]' inserts 3 AA after the 132nd position. '[AMWV]132[----]' deletes 4 AA starting at the 132nd position.
       3. Check mutation string is valid, eg. the parent sequence has the correct amino acid at the correct position.
-- `apply(self) -> Variant`: Apply the mutation to the variant, returns a new Variant
+- `get_variant_str(self, variant: Variant) -> str`: Apply the mutation to the variant and show its string.
 
 ### `MutationSet`
 - `__init__(self, mutations: List[Mutation])`: Initialize with a list of mutations.
@@ -43,8 +58,9 @@ These classes define proteins and functionality to apply mutations to those sequ
 - `union(self, other: MutationSet) -> MutationSet`: Return the union of two mutation sets.
 - `intersection(self, other: MutationSet) -> MutationSet`: Return the intersection of two mutation sets.
 - `difference(self, other: MutationSet) -> MutationSet`: Return the difference of two mutation sets.
-- `get_variant_str(self) -> str`: Return the string of the variant. See apply
-- `apply(self) -> Variant`: Apply the mutations to the variant, returns a new Variant. Careful with positioning, break into list first.
+- `get_variant_str(self, variant: Variant) -> str`: Return the string of the variant. See apply
+
+
 
 ---
 
@@ -86,6 +102,8 @@ These apply to Libraries. Some functionality include, making predictions, encodi
 ### `SequenceEncoder(BaseTransformation)`: encodes full sequence, arbitrary number of residues
 ### `MutationEncoder(BaseTransformation)`: encodes variable residues of a fixed length library
   
+
+For AA physicochemical features: PyPEF
 ---
 
 ## 4. Acquisition Function
