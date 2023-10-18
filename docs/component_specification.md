@@ -47,8 +47,9 @@ Information is stored in a database and can be retrieved dynamically when called
 - `from_string(self, mutation_string: str)`: Initialize with a mutation string (e.g., 'A132M').
     - Notes: 
       1. X can be used to indicate any amino acid, useful in combinatorial libraries.
-      2. Brackets can be used to indicate indels, eg 'A132[AMVW]' inserts 3 AA after the 132nd position. '[AMWV]132[----]' deletes 4 AA starting at the 132nd position.
-      3. Check mutation string is valid, eg. the parent sequence has the correct amino acid at the correct position.
+      2. Brackets can be used to indicate indels, eg 'A133[AMVW]' inserts 3 AA after the 132nd position. '[AMWV]132[----]' deletes 4 AA starting at the 132nd position.
+      3. We can also represent insertions without the reference amino acid, eg. '>132M' inserts M __before__ the 132nd position. 
+      4. Check mutation string is valid, eg. the parent sequence has the correct amino acid at the correct position.
 - `get_variant_str(self, variant: Variant) -> str`: Apply the mutation to the variant and show its string.
 
 ### `MutationSet`

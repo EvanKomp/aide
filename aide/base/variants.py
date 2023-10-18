@@ -6,6 +6,8 @@ from typing import Union, List, Iterable, Set
 from dataclasses import dataclass
 from collections.abc import MutableSet, Hashable
 
+from aide.utils.alignment import biopython_align
+
 class Variant:
     """A protein sequence with a unique identifier.
     
@@ -54,7 +56,7 @@ class Variant:
         self._id = id
         self._mutatable = mutatable
         self._children = {}
-        self._label = label
+        self.label = label
         self.mutations = MutationSet()
 
         # we are going to keep track of a hidden variable that is a hash of the
@@ -154,7 +156,10 @@ class Variant:
     
     @label.setter
     def label(self, label: float):
-        label = float(label)
+        if label is None:
+            pass
+        else:
+            label = float(label)
         self._label = label
     
     def __repr__(self):
@@ -180,7 +185,7 @@ class Variant:
         if self._id is not None:
             return hash(self._id)
         else:
-            return hash((self.base_sequence, self.mutations))
+            return hash(str(self))
     
     def __eq__(self, other: Variant):
         return str(self) == str(other)
@@ -190,6 +195,9 @@ class Variant:
     
     def __contains__(self, mutation: Mutation):
         return mutation in self.mutations
+    
+    def __len__(self):
+        return len(str(self))
     
     def add_mutations(self, mutations: Union[MutationSet, Mutation]):
         """Add mutations to the variant.
@@ -217,8 +225,60 @@ class Variant:
         new_mutations._check_validity(self)
         self.mutations = new_mutations
 
-    def parse_mutations(self, other: Variant, expect_indels: bool=False, **blast_params):
-        raise NotImplementedError('Need to write alignment method.')
+    def parse_mutations(self, other: Variant, expect_indels: bool=False, aggregate_indels: bool=False, **blast_params):
+        """Parse the mutations between two variants.
+        
+        Params
+        ------
+        other : Variant
+            The other variant to parse.
+        expect_indels : bool
+            Whether to expect indels or not. If not, sequences must be same length and are compared position wise.
+        aggregate_indels : bool
+            Whether to aggregate any indels into a single event. Eg. if there is a deletion of 2 AAs, next to eachother
+            in the sequence, the deletion will be aggregated into a single event.
+        """
+        if expect_indels:
+            query, subject, score, begin, end = biopython_align(str(self), str(other), **blast_params)
+        else:
+            if len(self) != len(other):
+                raise ValueError('The sequences must be the same length if expect_indels is False.')
+            else:
+                query = str(self)
+                subject = str(other)
+
+        mutations = []
+        pos1 = 0  # Position counter for seq1
+        order = 0 # Order counter for insertions
+
+        print(query, subject)
+        
+        for s1, s2 in zip(query, subject):
+            mutation_str = ""
+            # always reset order if not an insertion
+            if s1 != '-':
+                order = 0
+
+            if s1 != '-' and s2 != '-':
+                if s1 != s2:
+                    mutation_str = f"{s1}{pos1}{s2}"
+                    pos1 += 1
+                else:
+                    pos1 += 1
+            elif s1 == '-':
+                mutation_str = f"{order}>{pos1}{s2}"
+                order += 1
+            elif s2 == '-':
+                mutation_str = f"{s1}{pos1}-"
+                pos1 += 1
+
+            if mutation_str:
+                mutation = Mutation.from_string(mutation_str, zero_indexed=True)
+                mutations.append(mutation)
+
+        mutationset = MutationSet(mutations, aggregate_indels=aggregate_indels)
+        return mutationset
+                
     
     def is_descendant_of(self, other: Variant, only_parent: bool=False):
         """Whether the variant is a descendant of another variant.
@@ -286,10 +346,13 @@ class Mutation:
         The reference amino acid.
     alt : str
         The alternate amino acid.
+    order : int, default None
+        For insertions, specify the order of the insertions when other insertions occur at the same position.
     """
     position: int
     ref: str
     alt: str
+    order: int=0
 
     def __repr__(self):
         return f'Mutation({str(self)})'
@@ -298,9 +361,22 @@ class Mutation:
     def initial_width(self):
         """The width of the mutation before accounting for indels."""
         return len(self.ref)
+    
+    @property
+    def is_insertion(self):
+        """Whether the mutation is an insertion."""
+        return self.ref == ''
+
+    @property
+    def is_deletion(self):
+        """Whether the mutation is a deletion."""
+        return self.alt == '-'
 
     def _check_validity(self, variant: Variant):
-        if variant.base_sequence[self.position:self.position + self.initial_width] != self.ref:
+        if self.is_insertion and self.position > len(variant):
+            raise ValueError('Insertions are applied before the position, but the position is greater than the length of the sequence.')
+
+        elif variant.base_sequence[self.position:self.position + self.initial_width] != self.ref:
             raise ValueError('The reference amino acid does not match the parent sequence.')
     
     @staticmethod
@@ -323,21 +399,36 @@ class Mutation:
         # A2[MV] -> A, 2, MV
         # A2- -> A, 2, -
         # [AV]2[--] -> AV, 2, --
-        pattern = r'(?P<ref>\[?[A-Z]+\]?)?(?P<pos>\d+)(?P<alt>\[?[A-Z-]+\]?)'
+        # >2V -> '', 2, V (insertion)
+        # 0>2V -> '', 2, V (insertion with order, eg. this insertion is to the left of 1>2M)
+        pattern = r'(?P<order>\d+>)?(?P<ref>\[?[A-Z>]+\]?)?(?P<pos>\d+)(?P<alt>\[?[A-Z-]+\]?)'
         match = re.match(pattern, string)
-        
+
         if match:
             # Extracting matched groups
-            ref = match.group('ref').replace('[', '').replace(']', '')
+            order = match.group('order')
+            if order:
+                order = int(order[:-1])  # Remove '>' and convert to int
+            ref = match.group('ref')
+            if ref:
+                ref = ref.replace('[', '').replace(']', '')
+            else:
+                ref = ''
             pos = int(match.group('pos'))
             alt = match.group('alt').replace('[', '').replace(']', '')
+
+            if ref == '>':
+                ref = ''
+            if order is None:
+                order = 0
+
+            return ref, pos, alt, order
         else:
             raise ValueError(f"Invalid mutation string: {string}")
 
-        return ref, pos, alt
 
     @classmethod
-    def from_string(cls, mutation: str, zero_indexed: bool=True):
+    def from_string(cls, mutation: str, zero_indexed: bool=False):
         """Create a mutation from a string.
         
         Params
@@ -352,17 +443,21 @@ class Mutation:
         Mutation
             The mutation object.
         """
-        ref, pos, alt = cls._parse_mutation_string(mutation)
+        ref, pos, alt, order = cls._parse_mutation_string(mutation)
         if not zero_indexed:
             pos -= 1
-        return cls(pos, ref, alt)
+
+        if not pos >= 0:
+            raise ValueError('The position must be greater than or equal to 0.')
+        return cls(pos, ref, alt, order)
     
     def __str__(self):
         if len(self.ref) == 1:
             ref = self.ref
+        elif self.ref == '':
+            ref = f'{self.order}>'
         else:
             ref = f'[{self.ref}]'
-
         if len(self.alt) == 1:
             alt = self.alt
         else:
@@ -393,15 +488,24 @@ class Mutation:
         the other positions. So we need to add 'gaps' to the sequence to keep the positions
         """
         if self.initial_width == 1:
-            return list(variant)
+            return list(str(variant))
         else:
             # must keep the width together and append gaps
             # eg. for sequence AMV, and mutation [AM]0V -> ['AM', '-', 'V']
             output = []
+            last_mutation_excess = None
             for i, aa in enumerate(variant.base_sequence):
                 if i == self.position:
-                    output.append(self.ref)
+                    if self.initial_width > 1:
+                        output.append(self.ref)
+                    else:
+                        output.append(aa)
                     output.extend(['-'] * (self.initial_width - 1))
+                    last_mutation_excess = self.initial_width - 1
+                elif last_mutation_excess is not None and last_mutation_excess > 0:
+                    # here, we appended a mutation that was bigger than 1, so we need to
+                    # not double count AAs in the sequence
+                    last_mutation_excess -= 1
                 else:
                     output.append(aa)
             return output  
@@ -409,7 +513,15 @@ class Mutation:
     def _update_variant_list(self, aa_list: List[str]):
         """Update a list of amino acids by the mutation.
         """
-        aa_list[self.position] = self.alt
+        if not self.is_insertion:
+            aa_list[self.position] = self.alt
+        else:
+            # check if we are at the end of the sequence
+            if self.position == len(aa_list):
+                aa_list.append(self.alt)
+            else:
+                # insert before what is there
+                aa_list[self.position] = self.alt + aa_list[self.position]
 
     def get_variant_str(self, variant: Variant):
         """Parse the protein sequence after the mutation has been applied.
@@ -438,32 +550,96 @@ class MutationSet(MutableSet, Hashable):
     """
     __hash__ = MutableSet._hash
 
-    def __init__(self, mutations: Iterable[Mutation]=None):
+    def __init__(self, mutations: Iterable[Mutation]=None, aggregate_indels: bool=False):
         if mutations is None:
             mutations = []
         mutations = list(mutations)
+
         # check the correct type
         for mutation in mutations:
             if not isinstance(mutation, Mutation):
-                raise ValueError('mutations must be a list of Mutation objects.')
+                raise ValueError('mutations must be a list of Mutation objects.')  
+        
         mutation_set = set(mutations)
         # check than non of the positions overlap
         self._check_unique_mutation_positions(mutation_set)
         self.mutations = mutation_set
 
+        if aggregate_indels:
+            self._aggregate_indels()  
+
     def __repr__(self):
         return f'MutationSet({self.mutations})'
+    
+    def __str__(self):
+        mutations = sorted(list(self.mutations), key=lambda x: (x.position, x.order))
+        return ';'.join([str(mutation) for mutation in mutations])
 
     @staticmethod
     def _check_unique_mutation_positions(mutations: Iterable[Mutation]):
-        positions = [mutation.position for mutation in mutations]
+        positions = [mutation.position for mutation in mutations if not mutation.is_insertion]
+        insertion_positions = [mutation.position for mutation in mutations if mutation.is_insertion]
         # some mutations are multiple wide, so we must add those positions
         for mutation in mutations:
             if mutation.initial_width > 1:
                 positions.extend(range(mutation.position + 1, mutation.position + mutation.initial_width))
+                # also check if no insertion lives inside here
+                for i in range(mutation.position + 1, mutation.position + mutation.initial_width):
+                    if i in insertion_positions:
+                        raise ValueError('Cannot have an insertion inside a multi AA mutation.')
 
         if not len(set(positions)) == len(positions):
             raise ValueError('The mutation positions must be unique, but some are applied to the same position.')
+        
+        # now look at insertions
+        insertion_mutations = {}
+        for mutation in mutations:
+            if mutation.is_insertion:
+                if mutation.position not in insertion_mutations:
+                    insertion_mutations[mutation.position] = []
+                insertion_mutations[mutation.position].append(mutation)
+        # if any insertions occur at the same position, they must have an order
+        for _, insertion_list in insertion_mutations.items():
+            if len(insertion_list) > 1:
+                orders = [m.order for m in insertion_list]
+                if len(set(orders)) != len(orders):
+                    raise ValueError('If multiple insertions occur at the same position, they must have a unique order.')
+
+    def _aggregate_indels(self):
+        # if insertions are next to insertions or deletions are next to deletions, we can aggregate them
+        # into single larger events
+        sorted_by_position = sorted(list(self.mutations), key=lambda x: (x.position, x.order))
+        print(sorted_by_position)
+        current_aggregate = None
+        aggregated_mutations = []
+
+        for mutation in sorted_by_position:
+            if current_aggregate is None:
+                current_aggregate = mutation
+                continue
+
+            # check if we are adjacent and of the same type
+            if mutation.position == current_aggregate.position:
+                # if this is true and we passed the init checks, then these are both insertions
+                # we are on the correct order, so we can jsut append the insertion
+                current_aggregate = Mutation(ref=current_aggregate.ref, alt=current_aggregate.alt + mutation.alt, position=current_aggregate.position, order=current_aggregate.order)
+            elif mutation.position == current_aggregate.position + current_aggregate.initial_width:
+                # these are adjacent, now check if they are both deletions
+                if current_aggregate.alt.endswith('-') and mutation.is_deletion:
+                    current_aggregate = Mutation(ref=current_aggregate.ref + mutation.ref, alt=current_aggregate.alt, position=current_aggregate.position, order=current_aggregate.order)
+                    # this should update initial with too so that we catch the next deletion
+                else:
+                    # not a deletion, so we can't aggregate
+                    aggregated_mutations.append(current_aggregate)
+                    current_aggregate = mutation
+            else:
+                # not adjacent, so we can't aggregate
+                aggregated_mutations.append(current_aggregate)
+                current_aggregate = mutation
+        if current_aggregate is not None:
+            aggregated_mutations.append(current_aggregate)
+        self.mutations = set(aggregated_mutations)
+
 
     # MutableSet methods
     def __contains__(self, mutation: Mutation):
@@ -527,11 +703,20 @@ class MutationSet(MutableSet, Hashable):
         # eg. for sequence AMV, and mutation [AM]0V -> ['AM', '-', 'V']
         position_map = self.position_map
         output = []
+        last_mutation_excess = None
         for i, aa in enumerate(variant.base_sequence):
             if i in position_map:
                 mutation = position_map[i]
-                output.append(mutation.ref)
+                if mutation.initial_width > 1:
+                    output.append(mutation.ref)
+                else:
+                    output.append(aa)
                 output.extend(['-'] * (mutation.initial_width - 1))
+                last_mutation_excess = mutation.initial_width - 1
+            elif last_mutation_excess is not None and last_mutation_excess > 0:
+                # here, we appended a mutation that was bigger than 1, so we need to
+                # not double count AAs in the sequence
+                last_mutation_excess -= 1
             else:
                 output.append(aa)
         return output
@@ -552,8 +737,27 @@ class MutationSet(MutableSet, Hashable):
             self._check_validity(variant)
         
         aa_list = self._get_variant_base_list(variant)
+        # start with non insertions
         for mutation in self.mutations:
-            mutation._update_variant_list(aa_list)
+            if not mutation.is_insertion:
+                mutation._update_variant_list(aa_list)
+
+        # now do insertions
+        # mutation update list will add the mutation by looking at what is currently in
+        # the position and PREprending the mutation
+        # thus if multiple insertions happen at the same position, we need to go in reverse order
+        # we should have already checked that there are orders for these mutations
+        insertion_mutations = {}
+        for mutation in self.mutations:
+            if mutation.is_insertion:
+                if mutation.position not in insertion_mutations:
+                    insertion_mutations[mutation.position] = []
+                insertion_mutations[mutation.position].append(mutation)
+        for _, mutations in insertion_mutations.items():
+            mutations = sorted(mutations, key=lambda x: x.order)
+            for mutation in mutations[::-1]:
+                mutation._update_variant_list(aa_list)
+
         output_seq = ''.join(aa_list)
         output_seq = Mutation._remove_gaps(output_seq)
         return output_seq
