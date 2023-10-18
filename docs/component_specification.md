@@ -51,14 +51,21 @@ Information is stored in a database and can be retrieved dynamically when called
       3. We can also represent insertions without the reference amino acid, eg. '>132M' inserts M __before__ the 132nd position. 
       4. Check mutation string is valid, eg. the parent sequence has the correct amino acid at the correct position.
 - `get_variant_str(self, variant: Variant) -> str`: Apply the mutation to the variant and show its string.
+- `is_insertion -> bool` True if the mutation is an insertion. Note that it only counts single amino acid insertions, eg. 'A132[AMVW]' does not return True
+- `is_deletion -> bool` True if the mutation is a deletion. Note that it only counts single amino acid deletions, eg. 'AG132-' does not return True
 
 ### `MutationSet`
 - `__init__(self, mutations: List[Mutation])`: Initialize with a list of mutations.
 - `from_string(cls, parent: Union[Variant, str], mutation_string: str) -> MutationSet`: Initialize from a mutation string. Capable of handling semi colon seperated lists of mutations.
 - `__str__(self) -> str`: Return a string of the mutations.
-- `union(self, other: MutationSet) -> MutationSet`: Return the union of two mutation sets.
-- `intersection(self, other: MutationSet) -> MutationSet`: Return the intersection of two mutation sets.
-- `difference(self, other: MutationSet) -> MutationSet`: Return the difference of two mutation sets.
+
+Note for set opertations, Mutations are hashed by position, ref, alt, order.
+- `add(self, mutation: Mutation)`: Add a mutation to the set.
+- `discard(self, mutation: Mutation)`: Remove a mutation from the set.
+- `| -> MutationSet`: Return the union of two mutation sets.
+- `& -> MutationSet`: Return the intersection of two mutation sets.
+- `- -> MutationSet`: Return the difference of two mutation sets.
+
 - `get_variant_str(self, variant: Variant) -> str`: Return the string of the variant. See apply
 
 

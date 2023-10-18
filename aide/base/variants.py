@@ -640,7 +640,6 @@ class MutationSet(MutableSet, Hashable):
             aggregated_mutations.append(current_aggregate)
         self.mutations = set(aggregated_mutations)
 
-
     # MutableSet methods
     def __contains__(self, mutation: Mutation):
         return mutation in self.mutations
