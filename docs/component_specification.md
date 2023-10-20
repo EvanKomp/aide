@@ -17,7 +17,7 @@
 These classes define proteins and functionality to apply mutations to those sequence strings. Data classes are utilized here.
 
 ### `Variant`
-- `__init__(self, sequence: Union[str, Variant],  mutation: Union[Mutation, MutationSet, str], id: str=None, mutatable: bool=True, label: float=None)`: Initialize with a sequence.
+- `__init__(self, sequence: Union[str, Variant],  mutation: Union[Mutation, MutationSet, str], id: str=None, mutatable: bool=True, labels: VariantLabel=VariantLabel(), round_produced: int=None, round_labeled: int=None)`: Initialize with a sequence.
     - Notes: if not given, id is hash of parent + mutated sequence.
     - Mutatable can be used to prevent new mutations being added. This is done automatically if the variant has children.
 - `add_mutations(self, mutation: Union[Mutation, MutationSet])`: Add a mutation to the variant.
@@ -28,6 +28,12 @@ These classes define proteins and functionality to apply mutations to those sequ
 - `id -> str`: Return the id of the variant if present, otherwise the hash of the variant
 - `base_sequence`: Return the base sequence of the variant, without mutations applied
 - `hash -> str`: Return the hash of the variant, determined by the sequence after mutations are applied. Or hash of ID if present.
+- `mutatable -> bool`: Return whether the variant is mutatable
+- `labels -> VariantLabels` Return the labels of the variant.
+- `round_added -> int`: Return the round that the variant was created/added.
+- `round_putative -> List[int]`: Return the rounds that the variant was putatively generated in.
+- `round_experiment -> List[int]`: Return the round that the variant was put up for experimental testing.
+
 
 ### `DBVariant(Variant)`
 Information is stored in a database and can be retrieved dynamically when called, but otherwise is not stored, such that we can track parents and children without storing all of the sequences in memory.
@@ -77,18 +83,21 @@ Note for set opertations, Mutations are hashed by position, ref, alt, order.
 Defines a collection of variants and methods to split them, extract certain variants, save to file etc. The package revolvoes around working with these libraries eg. generating them, adding labels to them, filtering them, etc.
 
 ### `Library`
-- `__init__(self, variants: List[Variant], labels: List[float]=None, round: Round=None)`: Initialize with a list of variants.
+- `__init__(self, variants: Iterable[Variant])`: Initialize with a list of variants.
 - `get_statistics(self) -> Dict`: Return descriptive statistics.
-- `set_labels(self, mapping: Dict[str: float])`: Set supervised for each variant specified by its id.
+- `set_labels(self, mapping: Dict[str: float], round: int=None)`: Set supervised for each variant specified by its id.
 - `get_unlabeled(self) -> Library`: Return a new library with only unlabeled variants.
 - `get_labeled(self) -> Library`: Return a new library with only labeled variants.
 - `join(self, other: Library) -> Library`: Return the union of two libraries. If labels are present, they are also joined.
 - `save_to_file(self, filename: str)`: Save the library to a file.
-- `load_from_file(cls, filename: str, parent: str=None, id_col: str=None, mutation_col: str=None, label_col: str=None)`: Load the library from a file.
+- `load_from_file(cls, filename: str, parent_str: str=None, seq_col: str=None, parent_col: str=None, id_col: str=None, mutation_col: str=None, label_col: str=None)`: Load the library from a file.
 - `db_save(self, db: CampaignDatabase)`: Save the library to the database.
-- `db_load(cls, db: CampaignDatabase, idx: Union[int, None], only_labeled: bool=True) -> Library`: Load a library from the database.
-- `_single_parent`: True if all variants have the same parent sequence.
-- `_variable_residues`: Set of residues that are mutated in the library, only valid if `_single_parent` is True.
+- `db_load(cls, db: CampaignDatabase, round_idx: Union[int, None]) -> Library`: Load a library from the database.
+- `single_parent`: True if all variants have the same parent sequence.
+- `variable_residues`: Set of residues that are mutated in the library, only valid if `single_parent` is True.
+- `parent`: Parent sequence of the library, only valid if `single_parent` is True.
+
+
 
 ### `CombinatorialLibrary(Library)`
 - `__init__(self, mutations: MutationSet)`: Initialize with a list of mutations.
@@ -136,29 +145,31 @@ Abstract parent libary generation class.
 ---
 
 ## 6. Round
-### `Round`
+### `BaseRound`
 Abstract parent round class. Used to define a step in the lab, eg. this might be generating a new library to test, or  it might be filtering an existing library. These need to be modular and stackable. We need functionality to check if the round is ready to go
-- `__init__(self, params: Dict)`: Initialize with parameters. No library yet. Status is None
-- `set_starting_library(self, library: Library)`: Set the library for this round. Save to database if present.
-- `get_library_for_exp(self) -> Library`: Return the library for this round from the database if it exists, or generate it and save it to the database.
+- `__init__(self, database: CampaignDatabase, params: Dict)`: Initialize with parameters. Status is None
+- `commit_to_db(self)`: Save the round to the database on the top of the stack. Sets the round number.
+
+- `_setup_library_generation(self) -> LibraryGeneration`: Do any setup for library creation step, eg. load or train a sequence generator. Return a LibraryGeneration instance. Should be done from instance attributes only. By default, return a AllUnlabeledGeneration which just returns all unlabeled variants in the database.
+- `_library_generator` The setup library generation instance.
+- `library_generation(self)`: Set the putative library for the round. Runs the library_generator which returns a Library. See `_setup_library_generation`. The library is saved to the database. If variants in the libary were not already in the database, their round_produced is set to the current round.
+- `_setup_library_selection(self) -> AcquisitionFunction`: Do any setup for library selection step, eg. load or train a selection model. Return an AcquisitionFunction instance. Should be done from instance attributes only. By default, return a AllSelection which just returns all variants in the putative library.
+- `library_selection(self) -> Library`: Get the library to be used in the experiment. See `_setup_library_selection`. Calls the AquisitionFunction on the putative library. 
 - `set_labels(self, notes: str=None, exp_time: str=None)`: Check that labels have been added to the libarary and save, update status to 'complete'.
-- `save_to_db(self)`: Save the round to the database. Database must have been set by either to or from.
-- `to_db(self, db: CampaignDatabase, idx: int)`: Save the round to the database.
 - `from_db(cls, db: CampaignDatabase, idx: int) -> Round`: Load the round from the database.
-- `database`: CampaignDatabase object, None if not connected to a database.
-- `id`: Unique identifier for the round, None if not saved/from the database.
+- `db`: CampaignDatabase object, None if not connected to a database.
+- `round_idx`: Unique identifier for the round, None if not saved/from the database.
 - `status`: Status of the round, one of 
     1. 'unknown': Not connected to database at all
-    2. 'not started': Connected to database, but it is a future round and we cannot generate the library yet
+    2. 'not ready': Connected to database, but it is a future round and we cannot generate the library yet
     3. 'ready': Connected to database, and we can generate the library
-    4. 'started': Library has been generated, but not finished
-    5. 'complete': We have labels saved back to the database.
-- `_metadata`: Dictionary of metadata for the round, eg. notes, start time, end time, etc.
-- `_requires_library`: True if the round requires an input library to be generated.
-- `_training_data_strategy`: indicates which data to grab when using with a database, one of 'all' for all variants, 'labeled' for only labeled variants, 'latest' for only the latest round of variants.
-
-### `RoundLibraryGeneration(Round)`, `RoundFiltering(Round)`
-These are subclassed further for specific library generation methods, filtering methods, and screening methods from the literature.
+    4. 'generated': Library has been generated
+    5. 'selected': library has been selected for exp
+    6. 'labeled': library has been labeled and saved to database
+    7. 'complete': round complete, made immutable.
+- `notes` Notes about the round, eg. what was done, why, etc.
+- `start_time` Time the round was started, None if not started.
+- `end_time` Time the round was ended, None if not ended.
 
 ---
 
@@ -190,7 +201,7 @@ Libraries are loaded and saved to the database. Scheme for a campaign:
     2. notes: str
     3. start_time: datetime
     4. end_time: datetime nullable
-    5. status: str, one of 'unknown', 'not started', 'ready', 'started', 'complete'. See Round class for details.
+    5. status: str, one of 'unknown', 'not ready', 'ready', 'generated', 'selected', 'labeled', 'complete'. See Round class for details.
     6. generated: bool nullable
     7. size: int nullable
     8. labeled_size: int nullable
@@ -200,13 +211,19 @@ Libraries are loaded and saved to the database. Scheme for a campaign:
 - __Table: Variants__:
     1. idx: int
     2. id: str
-    3. round: int
-    4. parent: str, nullable
-    5. mutations: str, nullable
-    6. sequence: str
-    7. labels: float, nullable
+    2. round_added: int
+    3. round_putative: int nullable
+    4. round_experiment: int nullable
+    5. parent: str, nullable
+    6. mutations: str, nullable
+    7. sequence: str
+    8. labels: float, nullable
 
-- `__init__(self, path: str)`: Initialize or load the database.
+- `__init__(self, path: str, overwrite: bool=False)`: Initialize or load the database.
+- `get_variant(self, id: str) -> Variant`: Return the variant with the given id.
+- `save_variant(self, variant: Variant)`: Save the variant to the database. If it is already in the database, update it.
+- `get_library(self, ids: List[str]=None, round_added_idc: int=None, round_putative_idx: int=None, round_experiment_idx: int=None, only_labeled: bool=True, only_unlabled: bool=False) -> Library`: Return a library.
+- `save_library(self, library: Library)`: Save the library to the database. If it is already in the database, update it.
 - `current_round_status(self) -> (int, status)`: Return the first the latest round that is at least ready, and its status.
 - `get_round(self, idx: int) -> Round`: Return the round with the given index.
 - `add_round(self, round: Round) -> int`: Add a round to the database and return its index.

@@ -2,9 +2,10 @@
 """
 from __future__ import annotations
 import re
-from typing import Union, List, Iterable, Set
+from typing import Union, List, Iterable, Set, Dict
 from dataclasses import dataclass
 from collections.abc import MutableSet, Hashable
+from collections import UserDict
 
 from aide.utils.alignment import biopython_align
 
@@ -22,6 +23,12 @@ class Variant:
     id : Union[str, None]
         The unique identifier of the variant. If None is passed, the id
         is computed as a hash of the sequence and mutations.
+    label : Union[float, None, Dict[float]]
+        The label of the variant.
+    round_putative : Union[int, None]
+        The most recent round the variant was put up as a putative variant.
+    round_experiment : Union[int, None]
+        The round the variant selected for experiment.
 
     Attributes
     ----------
@@ -42,6 +49,34 @@ class Variant:
         Whether the variant is mutatable. If False, the variant is
         immutable and cannot be mutated. Note that when a variant becomes
         a parent of another variant, it becomes immutaatable.
+    labels : float or dict of float
+        The label of the variant.
+    round_added : int
+        The round the variant was added to the database.
+    round_putative : int
+        The most recent round the variant was put up as a putative variant.
+    round_experiment : int
+        The round the variant selected for experiment.
+
+    Methods
+    -------
+    cut_children()
+        Remove the reference to all children.
+    cut_parent()
+        Remove the reference to the parent.
+    set_label(label: float)
+        Set the label of the variant.
+    parse_mutations(other: Variant, expect_indels: bool=False, aggregate_indels: bool=False, **blast_params)
+        Parse the mutations self and another variants. Be default, it is assumed there are no indels and the sequences are the same length.
+        If expect_indels is True, the sequences are aligned and indels are parsed. This is not a perfect process, so it is recommended to
+        keep track of mutations manually instead of try to parse them.
+    is_descendant_of(other: Variant, only_parent: bool=False)
+        Whether the variant is a descendant of another variant.
+    is_ancestor_of(other: Variant, only_parent: bool=False)
+        Whether the variant is an ancestor of another variant.
+    propegate(mutations: Union[MutationSet, Mutation, str, None] = None, id: str = None)
+        Create a new variant with the called variant as the parent.
+
     """
     def __init__(
         self,
@@ -49,14 +84,32 @@ class Variant:
         mutations: Union[None, str, MutationSet, Mutation] = None,
         id: Union[None, str] = None,
         mutatable: bool = True,
-        label: Union[None, float] = None,
+        labels: VariantLabel = VariantLabel(),
+        round_added: int=None,
+        round_putative: Union[int, List[int]]=None,
+        round_experiment: Union[int, List[int]]=None
     ):
         self._base_sequence = None
         self._parent = None
         self._id = id
         self._mutatable = mutatable
         self._children = {}
-        self.label = label
+        if not isinstance(labels, VariantLabel):
+            raise ValueError('label must be a VariantLabel')
+        self._labels = labels
+        self._round_added = None
+        self._round_putative = []
+        self._round_experiment = []
+
+        self.round_added = round_added
+        if round_putative is not None:
+            if type(round_putative) == int:
+                round_putative = [round_putative]
+            self.round_putative = round_putative
+        if round_experiment is not None:
+            if type(round_experiment) == int:
+                round_experiment = [round_experiment]
+            self.round_experiment = round_experiment
         self.mutations = MutationSet()
 
         # we are going to keep track of a hidden variable that is a hash of the
@@ -151,19 +204,59 @@ class Variant:
         return len(self.children) == 0 and self._mutatable
     
     @property
-    def label(self) -> float:
+    def labels(self) -> VariantLabel:
         return self._label
+
+    @property
+    def round_added(self) -> int:
+        return self._round_added
     
-    @label.setter
-    def label(self, label: float):
-        if label is None:
-            pass
-        else:
-            label = float(label)
-        self._label = label
+    @round_added.setter
+    def round_added(self, round_added: int):
+        self._round_added = int(round_added)
+
+    @property
+    def round_putative(self) -> List[int]:
+        return self._round_putative
+    
+    def add_round_putative(self, round_putative: int):
+        if round_putative not in self.round_putative:
+            self.round_putative.append(round_putative)
+
+    @round_putative.setter
+    def round_putative(self, round_putative: List[int]):
+        self._round_putative = round_putative
+        
+    @property
+    def round_experiment(self) -> List[int]:
+        return self._round_experiment
+    
+    @round_experiment.setter
+    def round_experiment(self, round_experiment: List[int]):
+        self._round_experiment = round_experiment
+
+    def add_round_experiment(self, round_experiment: int):
+        if round_experiment not in self.round_experiment:
+            self.round_experiment.append(round_experiment)
+
+    def set_labels(self, labels: Union[dict, VariantLabel], enforce_signature: bool=True, round_idx: int=None):
+        """Set the label of the variant.
+
+        Params
+        ------
+        labels : Union[dict, VariantLabel]
+            The labels to set.
+        enforce_signature : bool
+            Whether to enforce the signature of the label.
+        round_idx : int
+            The round the labels were measured.
+        """
+        if isinstance(labels, VariantLabel):
+            labels = labels.data
+        self._labels.add_labels(enforce_signature=enforce_signature, **labels)
     
     def __repr__(self):
-        return f'Variant(id={self.id})'
+        return f'Variant(id={self.id}, label={self.label})'
 
     def __str__(self):
         # if we have never called this before we need to bite the bullet
@@ -332,7 +425,97 @@ class Variant:
         """
         child = Variant(self, mutations=mutations, id=id)
         return child
+
+
+class VariantLabel(UserDict):
+    """Stores labels for variants.
     
+    Variants can have multiple measurements for multiple rounds. This class
+    stores the labels for each round.
+
+    Params
+    ------
+    initial_data : Dict[int, float]
+        The initial labels.
+    signature : Iterable[str]
+        The signature of the labels. If None, the signature is inferred from the initial data.
+    round_idx : int
+        The round the labels were measured.
+
+    """
+    def __init__(self, initial_data: Dict[int, float]=None, signature: Iterable[str], round_idx: int=None):
+        super().__init__()
+
+        if signature is not None:
+            self.signature = signature
+
+        if initial_data is not None:
+            self.add_labels(round_idx=round_idx, enforce_signature=True, **initial_data)
+
+    @property
+    def signature(self):
+        return list(self.data.keys())
+    
+    @signature.setter
+    def signature(self, signature: Iterable[str]):
+        if len(self) > 0:
+            raise ValueError('Cannot change the signature of a VariantLabel with data.')
+        self.data = {label_name: [] for label_name in signature}
+
+    def add_labels(self, round_idx: int=None, enforce_signature: bool=True, **kwargs):
+        """Add labels to the variant.
+        
+        Params
+        ------
+        round_idx : int
+            The round the labels were measured.
+        enforce_signature : bool
+            Whether to enforce the signature of the label.
+        kwargs
+            The labels to add.
+        """
+        if enforce_signature:
+            if len(self.signature) == 0:
+                # if we have no signature, no need to enfore, just set it
+                self.signature = kwargs.keys()
+            else:
+                for label_name in kwargs:
+                    if label_name not in self.signature:
+                        raise ValueError(f'Label name {label_name} not in signature.')
+        for label_name, label_value in kwargs.items():
+            if label_name not in self.data:
+                self.data[label_name] = []
+            self.data[label_name].append((label_value, round_idx))
+
+    def get_labels(self, label_name: Union[str, Iterable[str], None]=None, agg_func: callable=None):
+        """Return label values.
+        
+        Params
+        ------
+        label_name : str
+            The label name to return. If None, return all labels.
+        agg_func : callable
+            The function to aggregate the labels. If None, return the raw labels.
+        """
+        # need to extract only labels, not rounds
+        def _data_to_labels_no_round(data):
+            return [label[0] for label in data]
+
+        if type(label_name) == str:
+            label_names = [label_name]
+        elif label_name is None:
+            label_names = self.signature
+        else:
+            label_names = label_name
+
+        if agg_func is None:
+            agg_func = lambda x: x
+
+        if len(label_names) == 1:
+            return agg_func(_data_to_labels_no_round(self.data[label_names[0]]))
+        else:
+            return {label_name: agg_func(_data_to_labels_no_round(self.data[label_name])) for label_name in label_names}
+        
     
 @dataclass(frozen=True, eq=True)
 class Mutation:
