@@ -1,7 +1,6 @@
 from aide import Variant, Mutation, MutationSet, VariantLabel
 import unittest
 
-
 class TestVariant(unittest.TestCase):
     def setUp(self):
         self.parent_seq = Variant('MAGV')
@@ -83,6 +82,11 @@ class TestVariant(unittest.TestCase):
         variant4 = Variant(variant1, mutations='A2[TM]')
         self.assertNotEqual(hash(variant1), hash(variant2))
         self.assertEqual(hash(variant4), hash(variant3))
+
+    def test_labels(self):
+        variant = Variant(self.parent_seq, mutations='A2[TM]')
+        variant.assign_labels(labels={'test': 1})
+        self.assertEqual(variant.labels.get_labels('test'), [1])
 
 class TestVariantLabel(unittest.TestCase):
 

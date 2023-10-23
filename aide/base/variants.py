@@ -208,7 +208,7 @@ class Variant:
     
     @property
     def labels(self) -> VariantLabel:
-        return self._label
+        return self._labels
 
     @property
     def round_added(self) -> int:
@@ -242,7 +242,7 @@ class Variant:
         if round_experiment not in self.round_experiment:
             self.round_experiment.append(round_experiment)
 
-    def set_labels(self, labels: Union[dict, VariantLabel], enforce_signature: bool=True, round_idx: int=None):
+    def assign_labels(self, labels: Union[dict, VariantLabel], enforce_signature: bool=True, round_idx: int=None):
         """Set the label of the variant.
 
         Params
