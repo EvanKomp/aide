@@ -84,7 +84,7 @@ class Variant:
         mutations: Union[None, str, MutationSet, Mutation] = None,
         id: Union[None, str] = None,
         mutatable: bool = True,
-        labels: VariantLabel = None,
+        labels: Union[Dict, VariantLabel] = None,
         round_added: int=None,
         round_putative: Union[int, List[int]]=None,
         round_experiment: Union[int, List[int]]=None
@@ -96,7 +96,11 @@ class Variant:
         self._children = {}
         if labels is None:
             labels = VariantLabel()
-        if not isinstance(labels, VariantLabel):
+        if isinstance(labels, VariantLabel):
+            pass
+        elif type(labels) == dict:
+            labels = VariantLabel(labels)
+        else:
             raise ValueError('label must be a VariantLabel')
         self._labels = labels
         self._round_added = None
