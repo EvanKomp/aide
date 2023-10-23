@@ -86,7 +86,7 @@ class TestVariant(unittest.TestCase):
     def test_labels(self):
         variant = Variant(self.parent_seq, mutations='A2[TM]')
         variant.assign_labels(labels={'test': 1})
-        self.assertEqual(variant.labels.get_labels('test'), [1])
+        self.assertEqual(variant.labels.get_values('test'), [1])
 
 class TestVariantLabel(unittest.TestCase):
 
@@ -104,43 +104,54 @@ class TestVariantLabel(unittest.TestCase):
             for value in labels:
                 self.assertEqual(value[1], 2)
 
-    def test_get_labels(self):
+    def test_get_values(self):
         ## This method gets the actual data and leaves the round index
         label = VariantLabel(initial_data={'a': [1,2], 'b': [3,4]})
 
-        outs = label.get_labels('a', agg_func=None)
+        outs = label.get_values('a', agg_func=None)
         self.assertEqual(outs, [1,2])
 
-        outs = label.get_labels(['a','b'], agg_func=None)
-        outs2 = label.get_labels(None, agg_func=None)
+        outs = label.get_values(['a','b'], agg_func=None)
+        outs2 = label.get_values(None, agg_func=None)
         self.assertEqual(outs, outs2)
         self.assertEqual(outs, {'a': [1,2], 'b': [3,4]})
 
         def mean(x):
             return sum(x)/len(x)
-        outs = label.get_labels('a', agg_func=mean)
+        outs = label.get_values('a', agg_func=mean)
         self.assertEqual(outs, 1.5)
 
-        outs = label.get_labels(['a','b'], agg_func=mean)
+        outs = label.get_values(['a','b'], agg_func=mean)
         self.assertEqual(outs, {'a': 1.5, 'b': 3.5})
 
     def test_add_labels(self):
         label = VariantLabel(initial_data={'a': [1,2], 'b': [3,4]})
         label.add_labels(a=5, b=6)
-        self.assertEqual(label.get_labels('a'), [1,2,5])
-        self.assertEqual(label.get_labels('b'), [3,4,6])
+        self.assertEqual(label.get_values('a'), [1,2,5])
+        self.assertEqual(label.get_values('b'), [3,4,6])
 
         label.add_labels(a=7, b=8, round_idx=2)
-        self.assertEqual(label.get_labels('a'), [1,2,5,7])
-        self.assertEqual(label.get_labels('b'), [3,4,6,8])
+        self.assertEqual(label.get_values('a'), [1,2,5,7])
+        self.assertEqual(label.get_values('b'), [3,4,6,8])
         self.assertEqual(label['a'][-1][1], 2)
 
         with self.assertRaises(ValueError):
             label.add_labels(c=9)
 
         label.add_labels(c=9, enforce_signature=False)
-        self.assertEqual(label.get_labels('c'), [9])
+        self.assertEqual(label.get_values('c'), [9])
 
+    def test_join(self):
+        label1 = VariantLabel(initial_data={'a': [1,2], 'b': [3,4]}, round_idx=1)
+        label2 = VariantLabel(initial_data={'a': [5,6], 'b': [7,8]}, round_idx=2)
+        label3 = VariantLabel(initial_data={'a': [5,6], 'b': [7,8]}, round_idx=1)
+
+        label1.join(label2)
+
+        self.assertEqual(label1.get_values(), {'a': [1,2,5,6], 'b': [3,4,7,8]})
+
+        with self.assertRaises(ValueError):
+            label1.join(label3)
         
 class TestMutation(unittest.TestCase):
     def setUp(self):

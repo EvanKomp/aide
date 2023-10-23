@@ -51,6 +51,8 @@ class Variant:
         a parent of another variant, it becomes immutaatable.
     labels : float or dict of float
         The label of the variant.
+    is_labelled : bool
+        Whether the variant is labelled.
     round_added : int
         The round the variant was added to the database.
     round_putative : int
@@ -213,6 +215,10 @@ class Variant:
     @property
     def labels(self) -> VariantLabel:
         return self._labels
+    
+    @property
+    def is_labeled(self) -> bool:
+        return self.labels.size > 0
 
     @property
     def round_added(self) -> int:
@@ -463,6 +469,13 @@ class VariantLabel(UserDict):
     def signature(self):
         return list(self.data.keys())
     
+    @property
+    def size(self) -> int:
+        """The number of total measurements.
+        """
+        total_size = sum([len(data) for data in self.data.values()])
+        return total_size
+    
     @signature.setter
     def signature(self, signature: Iterable[str]):
         if len(self) > 0:
@@ -496,10 +509,12 @@ class VariantLabel(UserDict):
                 label_value = list(label_value)
             else:
                 label_value = [label_value]
+
+            label_value = [float(value) for value in label_value]
             label_value = [(value, round_idx) for value in label_value]
             self.data[label_name].extend(label_value)
 
-    def get_labels(self, label_name: Union[str, Iterable[str], None]=None, agg_func: callable=None):
+    def get_values(self, label_name: Union[str, Iterable[str], None]=None, agg_func: callable=None):
         """Return label values.
         
         Params
@@ -528,6 +543,37 @@ class VariantLabel(UserDict):
         else:
             return {label_name: agg_func(_data_to_labels_no_round(self.data[label_name])) for label_name in label_names}
         
+    def join(self, other: VariantLabel, enforce_signature: bool=True):
+        """Join another VariantLabel to the current one.
+        
+        Params
+        ------
+        other : VariantLabel
+            The other VariantLabel to join.
+        enforce_signature : bool
+            Whether to enforce the signature of the label.
+        """
+        # we need to add labels but only the values that are not already present
+        # if we try to join a value that has the same round, we need to raise an error
+        # otherwise, we can combine values from different rounds
+        if enforce_signature:
+            if self.signature != other.signature:
+                raise ValueError('Cannot join VariantLabels with different signatures.')
+            
+        for other_label_name, other_label_values in other.data.items():
+            if other_label_name not in self.data:
+                self.data[other_label_name] = other_label_values
+            else:
+                # now we need to check there is no round overlap
+                current_rounds_present = set([label[1] for label in self.data[other_label_name]])
+                other_rounds_present = set([label[1] for label in other_label_values])
+                union = current_rounds_present.union(other_rounds_present)
+                if len(union) < (len(current_rounds_present) + len(other_rounds_present)):
+                    raise ValueError(f'Cannot join VariantLabels with overlapping rounds for key {other_label_name}')
+                else:
+                    self.data[other_label_name].extend(other_label_values)
+
+
     
 @dataclass(frozen=True, eq=True)
 class Mutation:
