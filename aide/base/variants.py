@@ -84,7 +84,7 @@ class Variant:
         mutations: Union[None, str, MutationSet, Mutation] = None,
         id: Union[None, str] = None,
         mutatable: bool = True,
-        labels: VariantLabel = VariantLabel(),
+        labels: VariantLabel = None,
         round_added: int=None,
         round_putative: Union[int, List[int]]=None,
         round_experiment: Union[int, List[int]]=None
@@ -94,6 +94,8 @@ class Variant:
         self._id = id
         self._mutatable = mutatable
         self._children = {}
+        if labels is None:
+            labels = VariantLabel()
         if not isinstance(labels, VariantLabel):
             raise ValueError('label must be a VariantLabel')
         self._labels = labels
@@ -101,7 +103,8 @@ class Variant:
         self._round_putative = []
         self._round_experiment = []
 
-        self.round_added = round_added
+        if round_added is not None:
+            self.round_added = round_added
         if round_putative is not None:
             if type(round_putative) == int:
                 round_putative = [round_putative]
@@ -443,7 +446,7 @@ class VariantLabel(UserDict):
         The round the labels were measured.
 
     """
-    def __init__(self, initial_data: Dict[int, float]=None, signature: Iterable[str], round_idx: int=None):
+    def __init__(self, initial_data: Dict[int, float]=None, signature: Iterable[str]=None, round_idx: int=None):
         super().__init__()
 
         if signature is not None:
@@ -485,7 +488,12 @@ class VariantLabel(UserDict):
         for label_name, label_value in kwargs.items():
             if label_name not in self.data:
                 self.data[label_name] = []
-            self.data[label_name].append((label_value, round_idx))
+            if hasattr(label_value, '__iter__'):
+                label_value = list(label_value)
+            else:
+                label_value = [label_value]
+            label_value = [(value, round_idx) for value in label_value]
+            self.data[label_name].extend(label_value)
 
     def get_labels(self, label_name: Union[str, Iterable[str], None]=None, agg_func: callable=None):
         """Return label values.

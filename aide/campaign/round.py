@@ -32,7 +32,6 @@ class MyRound(GenerationRoundMixin, MySelectionRoundMixin, BaseRound):
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 
 from aide.base import Library, EmptyLibraryException
@@ -131,14 +130,28 @@ class BaseRound:
 
     @property
     def db(self) -> CampaignDatabase:
+        """Database to store and retrieve campaign data."""
         return self._database
 
     @property
     def round_idx(self) -> int:
+        """Index of the round in the database."""
         return self._round_idx
     
     @property
     def status(self) -> str:
+        """Status of the round. 
+        
+        One of "unknown", "not ready", "ready", "generated", "selected", "labeled", "complete".
+        
+        - unknown: round has not been added to database
+        - not ready: round has been added to database, but not ready for library generation, eg. the previous round has not been committed
+        - ready: round is ready for library generation
+        - generated: putative library has been generated
+        - selected: library for experiment has been selected
+        - labeled: labels have been set for the library for experiment
+        - complete: round has been locked to database, next round can be generated
+        """
         if self._round_idx is None:
             return "unknown"
         else:
@@ -152,6 +165,7 @@ class BaseRound:
 
     @property
     def notes(self) -> str:
+        """Any experimental notes for the round."""
         if self._round_idx is None:
             return None
         else:
@@ -165,6 +179,7 @@ class BaseRound:
 
     @property
     def start_time(self) -> str:
+        """Start time of the round, in format %Y-%m-%d %H:%M:%S."""
         if self._round_idx is None:
             return None
         else:
@@ -178,12 +193,14 @@ class BaseRound:
 
     @property
     def end_time(self) -> str:
+        """End time of the round, in format %Y-%m-%d %H:%M:%S."""
         if self._round_idx is None:
             return None
         else:
             return self.db.get_round_end_time(self.round_idx)
     
     def add_to_db(self):
+        """Add the round to the database, on the top of the stack of rounds."""
         self._round_idx = self.db.add_round(self)
     
     def commit(self):
@@ -264,6 +281,17 @@ class BaseRound:
         return library_for_exp
     
     def set_labels(self, labels: dict, force: bool=False, notes: str=None):
+        """Set labels for the library for experiment.
+        
+        Params
+        ------
+        labels: dict
+            Dictionary mapping variant id to labels.
+        force: bool
+            If True, overwrite existing labels.
+        notes: str
+            Any notes for the round.
+        """
         if self.status == "selected":
             pass
         elif self.status == "labeled" and not force:
@@ -303,6 +331,15 @@ class BaseRound:
 
     @classmethod
     def from_db(cls, database: CampaignDatabase, round_idx: int) -> BaseRound:
+        """Load a round from the database, given the database and round index.
+        
+        Params
+        ------
+        database: CampaignDatabase
+            Database to store and retrieve campaign data.
+        round_idx: int
+            Index of the round in the database.
+        """
         params = database.get_round_params(round_idx)
         params = cls.param_class(**params)
 

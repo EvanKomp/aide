@@ -1,4 +1,4 @@
-from aide import Variant, Mutation, MutationSet
+from aide import Variant, Mutation, MutationSet, VariantLabel
 import unittest
 
 
@@ -83,6 +83,59 @@ class TestVariant(unittest.TestCase):
         variant4 = Variant(variant1, mutations='A2[TM]')
         self.assertNotEqual(hash(variant1), hash(variant2))
         self.assertEqual(hash(variant4), hash(variant3))
+
+class TestVariantLabel(unittest.TestCase):
+
+    def test_init(self):
+        label = VariantLabel(initial_data={'a': [1,2], 'b': [3,4]})
+        self.assertEqual(label.signature, ['a', 'b'])
+
+        label = VariantLabel(signature = ['a', 'b'])
+        self.assertEqual(label.signature, ['a', 'b'])
+
+        label = VariantLabel(initial_data={'a': [1,2], 'b': [3,4]}, round_idx=2)
+        # round idx is stored as the second element in the tuple
+        # for each value added to the label
+        for labels in label.values():
+            for value in labels:
+                self.assertEqual(value[1], 2)
+
+    def test_get_labels(self):
+        ## This method gets the actual data and leaves the round index
+        label = VariantLabel(initial_data={'a': [1,2], 'b': [3,4]})
+
+        outs = label.get_labels('a', agg_func=None)
+        self.assertEqual(outs, [1,2])
+
+        outs = label.get_labels(['a','b'], agg_func=None)
+        outs2 = label.get_labels(None, agg_func=None)
+        self.assertEqual(outs, outs2)
+        self.assertEqual(outs, {'a': [1,2], 'b': [3,4]})
+
+        def mean(x):
+            return sum(x)/len(x)
+        outs = label.get_labels('a', agg_func=mean)
+        self.assertEqual(outs, 1.5)
+
+        outs = label.get_labels(['a','b'], agg_func=mean)
+        self.assertEqual(outs, {'a': 1.5, 'b': 3.5})
+
+    def test_add_labels(self):
+        label = VariantLabel(initial_data={'a': [1,2], 'b': [3,4]})
+        label.add_labels(a=5, b=6)
+        self.assertEqual(label.get_labels('a'), [1,2,5])
+        self.assertEqual(label.get_labels('b'), [3,4,6])
+
+        label.add_labels(a=7, b=8, round_idx=2)
+        self.assertEqual(label.get_labels('a'), [1,2,5,7])
+        self.assertEqual(label.get_labels('b'), [3,4,6,8])
+        self.assertEqual(label['a'][-1][1], 2)
+
+        with self.assertRaises(ValueError):
+            label.add_labels(c=9)
+
+        label.add_labels(c=9, enforce_signature=False)
+        self.assertEqual(label.get_labels('c'), [9])
 
         
 class TestMutation(unittest.TestCase):
