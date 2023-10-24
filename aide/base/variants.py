@@ -565,8 +565,8 @@ class VariantLabel(UserDict):
                 self.data[other_label_name] = other_label_values
             else:
                 # now we need to check there is no round overlap
-                current_rounds_present = set([label[1] for label in self.data[other_label_name]])
-                other_rounds_present = set([label[1] for label in other_label_values])
+                current_rounds_present = set([label[1] for label in self.data[other_label_name] if label[1] is not None])
+                other_rounds_present = set([label[1] for label in other_label_values if label[1] is not None])
                 union = current_rounds_present.union(other_rounds_present)
                 if len(union) < (len(current_rounds_present) + len(other_rounds_present)):
                     raise ValueError(f'Cannot join VariantLabels with overlapping rounds for key {other_label_name}')
