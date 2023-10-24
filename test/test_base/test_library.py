@@ -1,7 +1,8 @@
 import unittest
 from aide import Variant, Library, VariantLabel
+from io import StringIO
 
-class TestLibrary:
+class TestLibrary(unittest.TestCase):
 
     def setUp(self):
         parent = Variant('MAGV')
@@ -60,5 +61,8 @@ class TestLibrary:
         self.assertIn(self.variants[0], self.library)
         self.assertIn(self.variants[1], self.library)
         self.assertIn(other_variants[0], self.library)
+
+    def test_save_to_file(self):
+        
 
 
