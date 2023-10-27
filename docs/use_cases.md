@@ -31,6 +31,18 @@ mutations = MutationSet([Mutation(parent_seq, 'A2[TM]'), ...])
 variant = mutations.apply()
 ```
 
+### 1.2 Labeling a variant and removing labels
+    
+```python
+from aide import Variant
+
+variant = Variant('MAGV')
+variant.add_labels(names=['a', 'a', 'b'], values=[1, 2, 3], round=0)
+
+# now remove the labels names 'a', removal probably a rare use case
+variant.remove_labels(names=['a'], round=0)
+```
+
 ### 1.3 Defining a library from a list of variants
 
 ```python

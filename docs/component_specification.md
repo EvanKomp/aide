@@ -17,7 +17,7 @@
 These classes define proteins and functionality to apply mutations to those sequence strings. Data classes are utilized here.
 
 ### `Variant`
-- `__init__(self, sequence: Union[str, Variant],  mutation: Union[Mutation, MutationSet, str], id: str=None, mutatable: bool=True, labels: VariantLabel=VariantLabel(), round_produced: int=None, round_labeled: int=None)`: Initialize with a sequence.
+- `__init__(self, sequence: Union[str, Variant],  mutation: Union[Mutation, MutationSet, str], id: str=None, mutatable: bool=True, labels: Union[str, VariantLabels]=None, round_produced: int=None, round_labeled: int=None)`: Initialize with a sequence.
     - Notes: if not given, id is hash of parent + mutated sequence.
     - Mutatable can be used to prevent new mutations being added. This is done automatically if the variant has children.
 - `add_mutations(self, mutation: Union[Mutation, MutationSet])`: Add a mutation to the variant.
@@ -33,7 +33,35 @@ These classes define proteins and functionality to apply mutations to those sequ
 - `round_added -> int`: Return the round that the variant was created/added.
 - `round_putative -> List[int]`: Return the rounds that the variant was putatively generated in.
 - `round_experiment -> List[int]`: Return the round that the variant was put up for experimental testing.
+- `add_label(self, name: str, value: float, round_idx int=None)`: Add a label to the variant.
+- `add_labels(self, names: Iterable[str], values: Iterable[float], round_idx int=None)`: Add a list of labels to the variant.
+- `has_label(self, name: str, round_idx int=None) -> bool`: Return True if the variant has a label of a certain name, optionally in a certain round.
+- `remove_labels(self, names: Iterable[str], round_idx int=None)`: Remove a list of labels from the variant.
+- `get_label_values(self, names: str, round_idx int=None) -> List[float]`: Return a list of the values of a certain name, optionally in a certain round.
+- `get_label_df(self) -> pd.DataFrame`: Return a dataframe of the labels.
 
+### `VariantLabel`
+Dataclass that stores a label name, value, round, and variant id for a variant.
+Attributes:
+- `variant_id`: str
+- `name`: str
+- `value`: float, int, or str
+- `round`: int=None
+Note: use hash as id for databasing.
+
+### `VariantLabels(MutableSet)`
+- `__init__(self, labels: Iterable[Union[VariantLabel, dict]]=None)`: Initialize with a list of labels.
+- `variant_id`: str
+- `schema -> List[str]` the label names present
+- `select(self, name: Union[str, List[str]], round_idx Union[int, Iterable[int]]=None) -> VariantLabels`: Return a new VariantLabels object with only the labels of a certain name/s, optionally in a certain round.
+- `get_values(self, name: str, round_idx Union[int, Iterable[int]]=None) -> List[float]`: Return a list of the values of a certain name, optionally in a certain round.
+- `add_labels(self, label: List[Union[VariantLabel, dict]])`: Add labels to the set.
+- `remove_labels(self, label: List[Union[VariantLabel, dict]])`: Remove labels from the set.
+- `has_labels(self, names: Iterable[str], round_idx Union[int, Iterable[int]]=None) -> bool`: Return True if the variant has (at least one) labels of a certain name/s, optionally in a certain round.
+- `df -> pd.DataFrame`: Return a dataframe of the labels.
+- `from_db(cls, db: CampaignDatabase, variant_id: str) -> VariantLabels`: Initialize from the database.
+- `to_db(self, db: CampaignDatabase)`: Save the labels to the database. Will raise error if the variant is not in the database. Note this completely erases. This will add duplicate labels without issue.
+- `remove_from_db(self, db: CampaignDatabase)`: Remove the labels from the database. Will raise error if the variant is not in the database.
 
 ### `DBVariant(Variant)`
 Information is stored in a database and can be retrieved dynamically when called, but otherwise is not stored, such that we can track parents and children without storing all of the sequences in memory.
@@ -45,7 +73,7 @@ Information is stored in a database and can be retrieved dynamically when called
 - `mutatable` always False
 - `parent` overloaded to retrieve the parent from the database.
 - `children` overloaded to retrieve the children from the database.
-- `label` overloaded to set and retrieve from database and set. Only mutable quantity of a DBVariant.
+- `labels` overloaded to set and retrieve from database and set. Only mutable quantity of a DBVariant.
 - `from_variant(cls, variant: Variant, db: CampaignDatabase) -> DBVariant`: Construct a DBVariant from a Variant. Uses CampaignDatabase methods. If the variant is already in the database, return that, otherwise add it to the database and return that.
 
 ### `Mutation`
@@ -74,8 +102,6 @@ Note for set opertations, Mutations are hashed by position, ref, alt, order.
 
 - `get_variant_str(self, variant: Variant) -> str`: Return the string of the variant. See apply
 
-
-
 ---
 
 ## 2. Library Classes
@@ -85,18 +111,23 @@ Defines a collection of variants and methods to split them, extract certain vari
 ### `Library`
 - `__init__(self, variants: Iterable[Variant])`: Initialize with a list of variants.
 - `get_statistics(self) -> Dict`: Return descriptive statistics.
-- `set_labels(self, mapping: Dict[str: float], round: int=None)`: Set supervised for each variant specified by its id.
-- `get_unlabeled(self) -> Library`: Return a new library with only unlabeled variants.
-- `get_labeled(self) -> Library`: Return a new library with only labeled variants.
+- `add_labels(self, variant_ids: Iterable[str], names: Iterable[str], values: Iterable[float], round_idx: Iterable[int]=None, )`: Set labels by mapping to the correct variant.
+- `add_labels_df(self, df: pd.DataFrame, varaint_id_col: str, name_col: str, round_idx_col: int=None)`: Set labels for each variant specified by its id for a certain key in a dataframe
+- `get_unlabeled(self, names: Iterable[str]=None, round_idx: int=None) -> Library`: Return a new library with only unlabeled variants for the label names and round specified.
+- `get_labeled(self, names: Iterable[str]=None, round_idx: int=None) -> Library`: Return a new library with only labeled variants for the label names and round specified.
 - `join(self, other: Library) -> Library`: Return the union of two libraries. If labels are present, they are also joined.
-- `save_to_file(self, filename: str)`: Save the library to a file.
-- `load_from_file(cls, filename: str, parent_str: str=None, seq_col: str=None, parent_col: str=None, id_col: str=None, mutation_col: str=None, label_col: str=None)`: Load the library from a file.
+- `build_variants_from_lookup(cls, variant_ids: Iterable[str]=None, lookup: DictLike[str, Dict], existing_database: CampaignDatabase=None) -> Library`: Build a library from a list of variant ids and a lookup dictionary/object. Also may search for variant ids in a database.
+    - Notes: lookup should return a dict of Variant keyword arguments with the addition of parent_id, which allows us to build a parentage tree of objects. If a parent id is not in the lookup or the database, this will return an incomplete parentage tree but will still build the
+    - lookup return schema: 'base_sequence', 'mutations', 'parent_id', 'labels', 'round_produced', 'round_added', 'round_experiment'. 'labels' should be a dict of lists with keys 'name', 'value', 'round_idx'. Only 'base_sequence' is required.
+variants. We search the lookup before the database for data.
+- `save_to_file(self, variant_file: io.TextIOWrapper, label_file: io.TextIOWrapper=None, variant_schema: Dict={'id_col': 'id', 'seq_col': 'sequence', 'mutations_col': 'mutations', 'parent_id_col': 'parent_id', 'round_added_col': 'round_added', 'round_putative_col': 'round_putative': 'round_experiment_col': 'round_experiment'}, label_schema: Dict={'id_col': 'variant_id', 'name_col': 'name', 'value_col': 'value', 'round_idx_col': None})`: Save the library to a file. If labels are present, save them to a seperate file.
+- `load_from_file(cls, variant_file: io.TextIOWrapper, label_file: io.TextIOWrapper=None, existing_database: CampaignDatabase=None, variant_schema: Dict={'id_col': 'id', 'seq_col': 'sequence', 'mutations_col': 'mutations', 'parent_id_col': 'parent_id', 'round_added_col': 'round_added', 'round_putative_col': 'round_putative': 'round_experiment_col': 'round_experiment'}, label_schema: Dict={'id_col': 'variant_id', 'name_col': 'name', 'value_col': 'value', 'round_idx_col': None}) -> Library`: Load a library from a file. If labels are present, load them from a seperate file.
 - `db_save(self, db: CampaignDatabase)`: Save the library to the database.
 - `db_load(cls, db: CampaignDatabase, round_idx: Union[int, None]) -> Library`: Load a library from the database.
+- `get_Xy(self, featurizer: Encoder, label_names: str=None, label_agg_func: callable=None) -> Dataset`: Return the features and labels of the library.
 - `single_parent`: True if all variants have the same parent sequence.
 - `variable_residues`: Set of residues that are mutated in the library, only valid if `single_parent` is True.
 - `parent`: Parent sequence of the library, only valid if `single_parent` is True.
-
 
 
 ### `CombinatorialLibrary(Library)`
@@ -197,7 +228,7 @@ Libraries are loaded and saved to the database. Scheme for a campaign:
 
 ### `CampaignDatabase`
 - __Table: Rounds__:
-    1. idx: int
+    1. idx: int PK
     2. notes: str
     3. start_time: datetime
     4. end_time: datetime nullable
@@ -209,15 +240,20 @@ Libraries are loaded and saved to the database. Scheme for a campaign:
     10. params: str, json string of parameters for round
 
 - __Table: Variants__:
-    1. idx: int
-    2. id: str
-    2. round_added: int
-    3. round_putative: int nullable
-    4. round_experiment: int nullable
+    2. id: str PK
+    2. round_added: int FK
+    3. round_putative: int nullable FK
+    4. round_experiment: int nullable FK
     5. parent: str, nullable
     6. mutations: str, nullable
     7. sequence: str
-    8. labels: float, nullable
+
+- __Table: Labels__:
+    1. id: int PK
+    2. variant_id: str FK
+    3. name: str
+    4. value: float, int, or str
+    5. round_idx int nullable
 
 - `__init__(self, path: str, overwrite: bool=False)`: Initialize or load the database.
 - `get_variant(self, id: str) -> Variant`: Return the variant with the given id.
@@ -226,9 +262,9 @@ Libraries are loaded and saved to the database. Scheme for a campaign:
 - `save_library(self, library: Library)`: Save the library to the database. If it is already in the database, update it.
 - `current_round_status(self) -> (int, status)`: Return the first the latest round that is at least ready, and its status.
 - `get_round(self, idx: int) -> Round`: Return the round with the given index.
-- `add_round(self, round: Round) -> int`: Add a round to the database and return its index.
-- `save_round(self, round: Round)`: Update round data, eg. status, size, labeled_size, etc. Round must have an index, eg. it is assigned to the database.
-- `_check_round(self, round: Round)`: Check that the round is in the database, and that the round has an index, and is the same type, etc.
+- `add_round(self, round_idx Round) -> int`: Add a round to the database and return its index.
+- `save_round(self, round_idx Round)`: Update round data, eg. status, size, labeled_size, etc. Round must have an index, eg. it is assigned to the database.
+- `_check_round(self, round_idx Round)`: Check that the round is in the database, and that the round has an index, and is the same type, etc.
 - `get_rounds(self) -> List[Round]`: Return a list of all rounds in the database.
 - `get_rounds_by_status(self, status: str) -> List[Round]`: Return a list of all rounds in the database with the given status.
 - `get_current_round(self) -> Round`: Return the latest round that is at least ready.

@@ -8,6 +8,7 @@ from collections.abc import MutableSet, Hashable
 from collections import UserDict
 
 from aide.utils.alignment import biopython_align
+from aide.base.labels import VariantLabel, VariantLabels
 
 class Variant:
     """A protein sequence with a unique identifier.
@@ -23,8 +24,13 @@ class Variant:
     id : Union[str, None]
         The unique identifier of the variant. If None is passed, the id
         is computed as a hash of the sequence and mutations.
-    label : Union[float, None, Dict[float]]
-        The label of the variant.
+    labels : dict=None
+        The labels of the variant. Must be of the form 
+        {
+            'name': Iterable of label names,
+            'values': Iterable of label values,
+            'round_idx': Iterable of round indices or int
+        }
     round_putative : Union[int, None]
         The most recent round the variant was put up as a putative variant.
     round_experiment : Union[int, None]
@@ -49,8 +55,8 @@ class Variant:
         Whether the variant is mutatable. If False, the variant is
         immutable and cannot be mutated. Note that when a variant becomes
         a parent of another variant, it becomes immutaatable.
-    labels : float or dict of float
-        The label of the variant.
+    labels : VariantLabels
+        The labels of the variant.
     is_labelled : bool
         Whether the variant is labelled.
     round_added : int
@@ -66,8 +72,12 @@ class Variant:
         Remove the reference to all children.
     cut_parent()
         Remove the reference to the parent.
-    set_label(label: float)
-        Set the label of the variant.
+    add_label(self, name: str, value: float, round_idx: int=None)
+        Add a label to the variant.
+    add_labels(self, names: Iterable[str], values: Iterable[float], round_idx: int=None)
+        Add multiple labels to the variant.
+    remove_label(self, name: str, round_idx: int=None)
+        Remove a label name from the variant.
     parse_mutations(other: Variant, expect_indels: bool=False, aggregate_indels: bool=False, **blast_params)
         Parse the mutations self and another variants. Be default, it is assumed there are no indels and the sequences are the same length.
         If expect_indels is True, the sequences are aligned and indels are parsed. This is not a perfect process, so it is recommended to
@@ -86,7 +96,7 @@ class Variant:
         mutations: Union[None, str, MutationSet, Mutation] = None,
         id: Union[None, str] = None,
         mutatable: bool = True,
-        labels: Union[Dict, VariantLabel] = None,
+        labels: Dict = None,
         round_added: int=None,
         round_putative: Union[int, List[int]]=None,
         round_experiment: Union[int, List[int]]=None
@@ -96,15 +106,6 @@ class Variant:
         self._id = id
         self._mutatable = mutatable
         self._children = {}
-        if labels is None:
-            labels = VariantLabel()
-        if isinstance(labels, VariantLabel):
-            pass
-        elif type(labels) == dict:
-            labels = VariantLabel(labels)
-        else:
-            raise ValueError('label must be a VariantLabel')
-        self._labels = labels
         self._round_added = None
         self._round_putative = []
         self._round_experiment = []
@@ -153,6 +154,12 @@ class Variant:
         else:
             raise ValueError('mutations must be a MutationSet, Mutation, or str')
         self.add_mutations(to_add)
+
+        self._labels = VariantLabels()
+        if labels is None:
+            pass
+        else:
+            self.add_labels(**labels)
 
     @property
     def parent(self) -> Variant:
@@ -216,9 +223,23 @@ class Variant:
     def labels(self) -> VariantLabel:
         return self._labels
     
-    @property
-    def is_labeled(self) -> bool:
-        return self.labels.size > 0
+    def has_labels(self, name: Union[str, Iterable[str]]=None, round_idx: int=None) -> bool:
+        """Whether the variant has a label.
+        
+        Params
+        ------
+        name : Union[str, Iterable[str]]=None
+            The name/s of the labels that the variant must have at least one of.
+            if None, the variant must have at least one label of any name
+        round_idx : int
+            The round the label was measured.
+        
+        Returns
+        -------
+        bool
+            Whether the variant has the label.
+        """
+        return self.labels.has_labels(name, round_idx=round_idx)
 
     @property
     def round_added(self) -> int:
@@ -252,22 +273,52 @@ class Variant:
         if round_experiment not in self.round_experiment:
             self.round_experiment.append(round_experiment)
 
-    def assign_labels(self, labels: Union[dict, VariantLabel], enforce_signature: bool=True, round_idx: int=None):
-        """Set the label of the variant.
-
+    def add_labels(self, names: Iterable[str], values: Iterable[float], round_idx: int=None):
+        """Add multiple labels to the variant.
+        
         Params
         ------
-        labels : Union[dict, VariantLabel]
-            The labels to set.
-        enforce_signature : bool
-            Whether to enforce the signature of the label.
-        round_idx : int
-            The round the labels were measured.
+        names : Union[str, Iterable[str]]
+            The names of the labels.
+        values : Union[float, Iterable[float]]
+            The values of the labels.
+        round_idx : Union[int, List[int]]=None
+            The round the label was measured.
         """
-        if isinstance(labels, VariantLabel):
-            labels = labels.data
-        self._labels.add_labels(enforce_signature=enforce_signature, **labels)
-    
+        if type(names) == str:
+            names = [names]
+        if not hasattr(values, '__iter__'):
+            values = [values]
+        if not hasattr(round_idx, '__iter__'):
+            round_idx = [round_idx] * len(names)
+        labels = [VariantLabel(variant_id=self.id, name=name, value=value, round_idx=rix) for name, value, rix in zip(names, values, round_idx)]
+        for label in labels:
+            if not label.variant_id == self.id:
+                raise ValueError('Cannot add label with different variant_id.')
+        self.labels.add_labels(labels)
+
+    def get_label_df(self):
+        """Get a dataframe of the labels.
+        """
+        return self.labels.df
+
+    def remove_labels(self, names: Union[str, Iterable[str]], round_idx: int=None):
+        """Remove multiple labels from the variant.
+        
+        Params
+        ------
+        names : Union[str, Iterable[str]]
+            The names of the labels.
+        round_idx : int
+            The round the label was measured.
+        """
+        if type(names) == str:
+            names = [names]
+        # first we need to get the labels that match the query
+        to_remove = self.labels.select(name=names, round_idx=round_idx)
+        # then we need to remove them
+        self.labels.remove_labels(to_remove)
+                   
     def __repr__(self):
         return f'Variant(id={self.id}, label={self.label})'
 
@@ -385,7 +436,6 @@ class Variant:
         mutationset = MutationSet(mutations, aggregate_indels=aggregate_indels)
         return mutationset
                 
-    
     def is_descendant_of(self, other: Variant, only_parent: bool=False):
         """Whether the variant is a descendant of another variant.
         
@@ -438,141 +488,6 @@ class Variant:
         """
         child = Variant(self, mutations=mutations, id=id)
         return child
-
-
-class VariantLabel(UserDict):
-    """Stores labels for variants.
-    
-    Variants can have multiple measurements for multiple rounds. This class
-    stores the labels for each round.
-
-    Params
-    ------
-    initial_data : Dict[int, float]
-        The initial labels.
-    signature : Iterable[str]
-        The signature of the labels. If None, the signature is inferred from the initial data.
-    round_idx : int
-        The round the labels were measured.
-
-    """
-    def __init__(self, initial_data: Dict[int, float]=None, signature: Iterable[str]=None, round_idx: int=None):
-        super().__init__()
-
-        if signature is not None:
-            self.signature = signature
-
-        if initial_data is not None:
-            self.add_labels(round_idx=round_idx, enforce_signature=True, **initial_data)
-
-    @property
-    def signature(self):
-        return list(self.data.keys())
-    
-    @property
-    def size(self) -> int:
-        """The number of total measurements.
-        """
-        total_size = sum([len(data) for data in self.data.values()])
-        return total_size
-    
-    @signature.setter
-    def signature(self, signature: Iterable[str]):
-        if len(self) > 0:
-            raise ValueError('Cannot change the signature of a VariantLabel with data.')
-        self.data = {label_name: [] for label_name in signature}
-
-    def add_labels(self, round_idx: int=None, enforce_signature: bool=True, **kwargs):
-        """Add labels to the variant.
-        
-        Params
-        ------
-        round_idx : int
-            The round the labels were measured.
-        enforce_signature : bool
-            Whether to enforce the signature of the label.
-        kwargs
-            The labels to add.
-        """
-        if enforce_signature:
-            if len(self.signature) == 0:
-                # if we have no signature, no need to enfore, just set it
-                self.signature = kwargs.keys()
-            else:
-                for label_name in kwargs:
-                    if label_name not in self.signature:
-                        raise ValueError(f'Label name {label_name} not in signature.')
-        for label_name, label_value in kwargs.items():
-            if label_name not in self.data:
-                self.data[label_name] = []
-            if hasattr(label_value, '__iter__'):
-                label_value = list(label_value)
-            else:
-                label_value = [label_value]
-
-            label_value = [float(value) for value in label_value]
-            label_value = [(value, round_idx) for value in label_value]
-            self.data[label_name].extend(label_value)
-
-    def get_values(self, label_name: Union[str, Iterable[str], None]=None, agg_func: callable=None):
-        """Return label values.
-        
-        Params
-        ------
-        label_name : str
-            The label name to return. If None, return all labels.
-        agg_func : callable
-            The function to aggregate the labels. If None, return the raw labels.
-        """
-        # need to extract only labels, not rounds
-        def _data_to_labels_no_round(data):
-            return [label[0] for label in data]
-
-        if type(label_name) == str:
-            label_names = [label_name]
-        elif label_name is None:
-            label_names = self.signature
-        else:
-            label_names = label_name
-
-        if agg_func is None:
-            agg_func = lambda x: x
-
-        if len(label_names) == 1:
-            return agg_func(_data_to_labels_no_round(self.data[label_names[0]]))
-        else:
-            return {label_name: agg_func(_data_to_labels_no_round(self.data[label_name])) for label_name in label_names}
-        
-    def join(self, other: VariantLabel, enforce_signature: bool=True):
-        """Join another VariantLabel to the current one.
-        
-        Params
-        ------
-        other : VariantLabel
-            The other VariantLabel to join.
-        enforce_signature : bool
-            Whether to enforce the signature of the label.
-        """
-        # we need to add labels but only the values that are not already present
-        # if we try to join a value that has the same round, we need to raise an error
-        # otherwise, we can combine values from different rounds
-        if enforce_signature:
-            if self.signature != other.signature:
-                raise ValueError('Cannot join VariantLabels with different signatures.')
-            
-        for other_label_name, other_label_values in other.data.items():
-            if other_label_name not in self.data:
-                self.data[other_label_name] = other_label_values
-            else:
-                # now we need to check there is no round overlap
-                current_rounds_present = set([label[1] for label in self.data[other_label_name] if label[1] is not None])
-                other_rounds_present = set([label[1] for label in other_label_values if label[1] is not None])
-                union = current_rounds_present.union(other_rounds_present)
-                if len(union) < (len(current_rounds_present) + len(other_rounds_present)):
-                    raise ValueError(f'Cannot join VariantLabels with overlapping rounds for key {other_label_name}')
-                else:
-                    self.data[other_label_name].extend(other_label_values)
-
 
     
 @dataclass(frozen=True, eq=True)
