@@ -243,10 +243,3 @@ class TestLibrary(unittest.TestCase):
             label_values=[1],
             round_idx=[2])
         self.assertTrue(len(self.library['myid'].get_label_values('c')) == 1)
-
-
-
-
-        
-
-
