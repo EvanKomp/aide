@@ -39,6 +39,8 @@ from aide.base import LibraryGenerator, AquisitionFunction
 from aide.campaign.database import CampaignDatabase
 from dataclasses import dataclass
 
+from typing import List
+
 class RoundStatusError(Exception):
     """Raised when attempting to perform an action on a round with an invalid status."""
     pass
@@ -49,7 +51,7 @@ class RoundStatusWarning(Warning):
 
 @dataclass
 class RoundParams:
-    _placeholder: str = "placeholder"
+    objectives: List[str] = ['label']
 
 class BaseRound:
     """Abstract parent class for a round of the campaign.
