@@ -33,6 +33,7 @@ class MyRound(GenerationRoundMixin, MySelectionRoundMixin, BaseRound):
 from __future__ import annotations
 
 from datetime import datetime
+import warnings
 
 from aide.base import Library, EmptyLibraryException
 from aide.base import LibraryGenerator, AquisitionFunction
@@ -253,7 +254,7 @@ class BaseRound:
             self.start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         elif self.status == "generated":
-            raise RoundStatusWarning(f"Library already generated for round {self.round_idx}, skipping. If you would like to restart this round, call round.reset()")
+            warnings.warn(f"Library already generated for round {self.round_idx}, skipping. If you would like to restart this round, call round.reset()", RoundStatusWarning)
         else:
             raise RoundStatusError(f"Cannot generate library for round with status {self.status}")
 
@@ -268,7 +269,7 @@ class BaseRound:
             library_for_exp = self.aquisition_function.select_library(self.putative_library)
         elif self.status == "selected":
             library_for_exp = self._attempt_recover_library_for_exp()
-            raise RoundStatusWarning(f"Library already selected for round {self.round_idx}, retrieving from database. If you would like to restart this round, call round.reset()")
+            warnings.warn(f"Library already selected for round {self.round_idx}, retrieving from database. If you would like to restart this round, call round.reset()", RoundStatusWarning)
         else:
             raise RoundStatusError(f"Cannot select library for round with status {self.status}")
         self.library_for_exp = library_for_exp
@@ -297,7 +298,7 @@ class BaseRound:
         if self.status == "selected":
             pass
         elif self.status == "labeled" and not force:
-            raise RoundStatusWarning(f"Labels already set for round {self.round_idx}, skipping. If you would like to restart this round, call round.reset(). If you would like to relabel, set force=True.")
+            warnings.warn(f"Labels already set for round {self.round_idx}, skipping. If you would like to restart this round, call round.reset(). If you would like to relabel, set force=True.", RoundStatusWarning)
         elif self.status == "labeled" and force:
             pass
         else:

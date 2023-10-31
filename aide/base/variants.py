@@ -2,6 +2,7 @@
 """
 from __future__ import annotations
 import re
+import hashlib
 from typing import Union, List, Iterable, Set, Dict
 from dataclasses import dataclass
 from collections.abc import MutableSet, Hashable
@@ -178,7 +179,7 @@ class Variant:
     def id(self) -> str:
         """The unique identifier of the variant."""
         if self._id is None:
-            return hash(self)
+            return str(hash(self))
         else:
             return self._id
 
@@ -320,7 +321,7 @@ class Variant:
         self.labels.remove_labels(to_remove)
                    
     def __repr__(self):
-        return f'Variant(id={self.id}, label={self.label})'
+        return f'Variant(id={self.id}, label={self.labels})'
 
     def __str__(self):
         # if we have never called this before we need to bite the bullet
@@ -339,10 +340,13 @@ class Variant:
         return self._str
     
     def __hash__(self):
+        m = hashlib.md5()
         if self._id is not None:
-            return hash(self._id)
+            string = self._id
         else:
-            return hash(str(self))
+            string = str(self)
+        m.update(string.encode('utf-8'))
+        return int(m.hexdigest(), 16)
     
     def __eq__(self, other: Variant):
         return str(self) == str(other)

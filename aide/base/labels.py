@@ -19,6 +19,9 @@ class VariantLabels(MutableSet):
         if labels:
             self.add_labels(labels)
 
+    def __repr__(self) -> str:
+        return f"VariantLabels({self.counts})"
+
     def add_labels(self, labels: Union[VariantLabels, List[Union[Dict, VariantLabel]]]):
         for label in labels:
             
@@ -38,7 +41,7 @@ class VariantLabels(MutableSet):
 
     def has_labels(self, names: Union[str, Iterable[str]]=None, round_idx: Union[int, Iterable[int]] = None) -> bool:
         if names is None:
-            return len([label for label in self.labels if label.round_idx == round_idx if round_idx is not None]) > 0
+            return len([label for label in self.labels if (label.round_idx == round_idx if round_idx is not None else True)]) > 0
         elif type(names) == str:
             names = [names]
         return all([
@@ -77,6 +80,10 @@ class VariantLabels(MutableSet):
     @property
     def schema(self) -> List[str]:
         return set(label.name for label in self.labels)
+    
+    @property
+    def counts(self) -> Dict[str, int]:
+        return {name: len(self.get_values(name)) for name in self.schema}
 
     def select(self, name: Union[str, List[str]], round_idx: Union[int, Iterable[int]] = None) -> 'VariantLabels':
         filtered_labels = {label for label in self.labels if label.name in name and (label.round_idx == round_idx if round_idx is not None else True)}

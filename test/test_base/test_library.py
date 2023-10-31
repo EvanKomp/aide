@@ -1,5 +1,5 @@
 import unittest
-from aide import Variant, Library, VariantLabel
+from aide import Variant, Library
 from io import StringIO
 import pandas as pd
 
@@ -22,7 +22,7 @@ class TestLibrary(unittest.TestCase):
 
     def test_in(self):
         self.assertIn(self.variants[0], self.library)
-        other_variant = Variant(self.variants[0], mutations='A2M')
+        other_variant = Variant(self.variants[0], mutations='G4T')
         self.assertNotIn(other_variant, self.library)
 
     def test_len(self):
@@ -87,13 +87,13 @@ class TestLibrary(unittest.TestCase):
         self.assertIn(other_variants[0], self.library)
 
         # also check label join
-        self.assertEqual(len(self.library['-7013149887522224480'].labels), 2)
+        self.assertEqual(len(self.library['1333789051044203930'].labels), 2)
 
     def test_build_variants_from_lookup(self):
 
         lookup = {
             'id1': {
-                'base_sequence': 'MAGV',
+                'sequence': 'MAGV',
                 'mutations': 'A2[TM]',
                 'labels': {
                     'names': ['a'],
@@ -103,7 +103,7 @@ class TestLibrary(unittest.TestCase):
                 'parent_id': 'id0',
             },
             'id2': {
-                'base_sequence': 'MAGV',
+                'sequence': 'MAGV',
                 'mutations': 'G3[ST]',
                 'labels': {
                     'names': ['a'],
@@ -113,7 +113,7 @@ class TestLibrary(unittest.TestCase):
                 'parent_id': 'id0',
             },
             'id0': {
-                'base_sequence': 'MAGV',
+                'sequence': 'MAGV',
                 'mutations': None,
                 'labels': {
                     'names': ['a'],
@@ -123,7 +123,7 @@ class TestLibrary(unittest.TestCase):
                 'parent_id': None,
             },
             'id3': {
-                'base_sequence': 'MAGV',
+                'sequence': 'MAGV',
                 'mutations': 'V4T',
                 'labels': {
                     'names': ['a'],
@@ -144,7 +144,7 @@ class TestLibrary(unittest.TestCase):
 
         # this one should throw a warning
         # because id3 has a parent not in the lookup.
-        with self.assertWarns(UserWarning):
+        with self.assertWarns(Warning):
             library = Library.build_variants_from_lookup(variant_ids=['id1', 'id2', 'id3'], lookup=lookup)
 
         # TODO need to add a test with a database
