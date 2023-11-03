@@ -1,5 +1,6 @@
 # Use cases
 
+TODO: need to update based on changes to component spec, particular Round and Library
 
 ## 1. Base interactions with the package
 
