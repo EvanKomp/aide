@@ -18,18 +18,18 @@ parent_seq = Variant('MAGV')
 from aide import Variant, Mutation, MutationSet
 
 parent_seq = Variant('MAGV')
-mutation = Mutation(parent_seq, 'A2[TM]')
-variant = mutation.apply()
-# OR variant = Variant(mutation=mutation)
+mutation = Mutation(position=2, ref='A', alt='TM')
+variant = Variant(parent_seq, mutation=mutation)
+
 variant
 >>> Variant('MAGV', mutation='A2[TM]')
 str(variant)
 >>> 'MTMGV'
 
 # with mutliple mutations
-mutations = MutationSet([Mutation(parent_seq, 'A2[TM]'), ...])
+mutations = MutationSet([Mutation.from_string('A2[TM]'), ...])
 # OR mutations = MutationSet.from_string(parent_seq, 'A2[TM];A3[ST]')
-variant = mutations.apply()
+variant = Variant(parent_seq, mutations=mutations)
 ```
 
 ### 1.2 Labeling a variant and removing labels
@@ -54,24 +54,53 @@ library[0].id
 >>> 'a'
 ```
 
-### 1.4 Defining a combinatorial library or mutations
-    
-```python
-from aide import CombinatorialLibrary, MutationSet
-mutations = MutationSet.from_string('MAGV', 'A2[TM];A3[ST]') # or [Mutation(...), ...
-library = CombinatorialLibrary(mutations)
-```
 
-### 1.5 Loading a set of variants from eg. a CSV file from a saturation mutagenesis experiment
+### 1.4 Loading a set of variants from eg. a CSV file from a saturation mutagenesis experiment or a list of sequences
 
-CSV contains 'id', and 'mutation' columns. 'id' is a unique identifier for the variant, and 'mutation' is a string of the form 'A123T' where the first character is the wildtype amino acid, the number is the position, and the last character is the mutant amino acid.
+Labels are tracked seperately.
 
 ```python
 
-from aide import Library
+from aide import VariantLibrary, MutationLibrary
 
-library = Library.from_file('mutations.csv', id_col='id', mutation_col='mutation', parent_seq='MAGV') # for mutagenesis experiment
-library = Library.from_file('mutations.csv', id_col='id', seq_col='sequence') # for a library of sequences
+# for a list of sequences
+library = VaraintLibrary.load_from_file('sequences.csv', schema={
+    'id_col': 'id',
+    'seq_col': 'sequence'
+    })
+# also include labels
+# here there is a second file with mutiple tyes of labels for each sequence
+library = VariantLibrary.load_from_file(
+    'sequences.csv',
+    schema={
+        'id_col': 'id',
+        'seq_col': 'sequence',
+    },
+    label_file='labels.csv',
+    label_schema={
+        'id_col': 'id',
+        'name_col': 'label_type'
+        'value_col': 'label_value'
+    }
+)
+
+# from a saturation mutagenesis experiment that has been phenotyped
+# lets say there is just one columns, 'mutation'
+library = MutationLibrary.load_from_file(
+    'saturation_mutagenesis.csv',
+    schema={
+        'id_col': 'mutation',
+        'mutation_col': 'mutation',
+    },
+)
+# convert to a library of variants with a parent sequence
+variant_library = library.apply_parent(parent='MAGV')
+
+# can also create a combinatorial library, though I am not sure this is
+# relevant experimentally, as on the becnh we do not have control over
+# the phenotype? So this may be an unused feature also of type MutationLibrary
+# this is a generator of mutation combinations
+comb_library = library.combinations()
 ```
 
 ### 1.6 Parsing mutations from two variants
@@ -164,33 +193,151 @@ round.set_labels(experimental_results)
 ### 2.3 Running a full predefined DE campaign
 
 ```python
+from aide import MutationLibrary
 from aide.zoo import Saito2018Runner, Saito2018Config
 
 config = Saito2018Config(
     name='my_campaign',
     description='my campaign description',
     database='./my_campaign.db'
+    user_input_every_step=False, # if False, status updates that do not require user input are automatically executed
     number_of_rounds=2,
     variants_per_round=10,
-    ) # initial library determined by saturation mutagenesis
+) # initial library determined by saturation mutagenesis
 
 runner = Saito2018Runner(config)
+# Here 4 residues are modified. This includes more than just single point mutations
+# The authors provide a csv file with the 4 residues as a string eg 'GVAY'
+# it is assumed that the file has been updated to mark mutations as full specification
+# eg. 'S65G;S72V;H77A;T203Y'
+# let's say size of library is 10000
+initial_library = MutationLibrary.load_from_file(
+    'initial_library.csv',
+    schema={
+        'id_col': 'id',
+        'mutation_col': 'mutation',
+    }
+)
+initial_library = initial_library.apply_parent(parent='...') # whatever it is
+
+runner.step()
+>>> CampaignError: Cannot take step of round 0, status is 'not ready'
+runner.step(library=initial_library)
+>>> Round 0 of type RandomSelectionRound() status is 'ready'
+>>> Round 0 of type RandomSelectionRound() status is 'generated', putative library contains 10000 variants.
+>>> Round 0 of type RandomSelectionRound() status is 'selected', library for experiment has 10 variants at file path 'library_for_exp.csv' # this includes the ids of the variants to test
+# after testing them and creating a csv file with the resulting experimental labels
+runner.step(label_path='experimental_results.csv', id_col='id', name_col='label_name', value_col='label_value')
+>>> Round 0 of type RandomSelectionRound() status is 'labeled'
+>>> Round 0 of type RandomSelectionRound() status is 'complete' and is immutable in database.
+>>> Round 1 of type GPSelectionRound(features='ResiduePhysicalFeatures', strategy='InfoMax', number_of_variants=10) status is 'ready'
+
+# start next round
+runner.step()
+>>> Round 1 of type GPSelectionRound(features='ResiduePhysicalFeatures', strategy='InfoMax', number_of_variants=10) status is 'generated', putative library contains 9990 variants.
+>>> Round 1 of type GPSelectionRound(features='ResiduePhysicalFeatures', strategy='InfoMax', number_of_variants=10) status is 'selected', library for experiment has 10 variants at file path 'library_for_exp.csv'
+# after testing them and creating a csv file with the resulting experimental labels
+runner.step(label_path='experimental_results.csv', id_col='id', name_col='label_name', value_col='label_value')
+>>> Round 1 of type GPSelectionRound(features='ResiduePhysicalFeatures', strategy='InfoMax', number_of_variants=10) status is 'labeled'
+>>> Round 1 of type GPSelectionRound(features='ResiduePhysicalFeatures', strategy='InfoMax', number_of_variants=10) status is 'complete' and is immutable in database.
+>>> Round 2 of type GPSelectionRound(features='ResiduePhysicalFeatures', strategy='greedy', number_of_variants=10) status is 'ready'
+
+# start next round
+runner.step()
+>>> Round 2 of type GPSelectionRound(features='ResiduePhysicalFeatures', strategy='greedy', number_of_variants=10) status is 'generated', putative library contains 9980 variants.
+>>> Round 2 of type GPSelectionRound(features='ResiduePhysicalFeatures', strategy='greedy', number_of_variants=10) status is 'selected', library has 10 variants at file path 'library_for_exp.csv'
+# the final 10 are selected greedily
+runner.step(label_path='experimental_results.csv', id_col='id', name_col='label_name', value_col='label_value')
+>>> Round 2 of type GPSelectionRound(features='ResiduePhysicalFeatures', strategy='greedy', number_of_variants=10) status is 'labeled'
+>>> Round 2 of type GPSelectionRound(features='ResiduePhysicalFeatures', strategy='greedy', number_of_variants=10) status is 'complete' and is immutable in database.
+
+# you can then select the best variant
+runner.get_best_variant()
+```
+
+Here is another one, eg. Fox et. all which operates on a per mutation basis instead of a persequence basis
+
+```python
+from aide import Library
+from aide.zoo import Fox2018Runner, Fox2018Config
+
+config = Fox2018Config(
+    name='my_campaign',
+    description='my campaign description',
+    database='./my_campaign.db'
+    user_input_every_step=False, # if False, status updates that do not require user input are automatically executed
+    number_of_rounds=2,
+    n_libraries_per_round=1
+    n_mutations_per_library=15,
+    max_prosar_mutations_per_library=10, # the rest are randomly included
+    n_variants_per_library=None,
+    p_critereon=1e-4,
+    max_parent_adjustments=5,
+    rule_out_percentile=0.25,
+) 
+# this library is of a bunch of mutations
+# Fox et al consider the process on a per mutation basis
+# the model is used to determine which mutations to either apply to the backbone,
+# keep in a pool for future rounds, or rule out
+# they did mutliple "campaigns" in paralle but this is out of scope for now.
+# instead, do one linear run where the starting pool of mutations is all mutations
+# and we wittle it down.
+runner = Fox2018Runner(config)
+
+initial_library = MutationLibrary.load_from_file(
+    'initial_library.csv',
+    schema={
+        'id_col': 'id',
+        'mutation_col': 'mutation',
+    }
+)
+initial_library = initial_library.apply_parent(parent='...') # whatever it is
+
+# start by loading the initial library
+runner.step(library=initial_library)
+>>> Round 0 of type RandomCombinationsRound(n_libraries_per_round=1, n_mutations_per_library=15, n_variants_per_library=None) status is 'ready', 
+>>> Round 0 of type RandomCombinationsRound(n_libraries_per_round=1, n_mutations_per_library=15, n_variants_per_library=None) status is 'generated', putative combinatorial library contains 15! variants. Mutations for combinations and parent sequence are at file path 'mutations_for_combinations.txt'
 runner.step()
 >>> CampaignError: Cannot take step of round 0, status is 'not started'
-runner.step(data_path='initial_library.csv', parent_seq='MVKMG', id_col='id', mutations_col='mut') # the library from mutagenesis, etc
->>> Round 0 of type RandomGenerationRound() status is 'ready'
-runner.step()
->>> Round 0 of type RandomGenerationRound() status is 'started', library has 10 variants at file path 'library_for_exp.csv'
-runner.step(data_path='experimental_results.csv', id_col='id', mutations_col='mut', label_col='label')
->>> Round 0 of type RandomGenerationRound() status is 'complete'
-runner.step()
->>> Round 1 of type GPSelectionRound(features='ResiduePhysicalFeatures', strategy='InfoMax', number_of_variants=10) status is 'started', library has 10 variants at file path 'library_for_exp.csv'
-runner.step(data_path='experimental_results.csv', id_col='id', mutations_col='mut', label_col='label')
->>> Round 1 of type GPSelectionRound(features='ResiduePhysicalFeatures', strategy='InfoMax', number_of_variants=10) status is 'complete'
-runner.step()
->>> Round 2 of type GPSelectionRound(features='ResiduePhysicalFeatures', strategy='greedy', number_of_variants=10) status is 'started', library has 10 variants at file path 'library_for_exp.csv'
+# we have to load the phenotypes for the sample of the combinatorial library that were created
+combinatorial_library = MutationLibrary.load_from_file(
+    'combinatorial_library.csv', # assuming we created 1000 variants
+    schema={
+        'id_col': 'id',
+        'mutation_col': 'mutation',
+    }
+)
+runner.step(library=combinatorial_library) # it knows the parent for the round so we can convert to VariantLibrary internally
+>>> Round 0 of type RandomCombinationsRound(n_libraries_per_round=1, n_mutations_per_library=15, n_variants_per_library=None) status is 'selected', library for experiment has 1000 variants at file path 'library_for_exp.csv' # note that since n_variants_per_library=None, the entire library is tested
+# after testing them and creating a csv file with the resulting experimental labels
+runner.step(label_path='experimental_results.csv', id_col='id', name_col='label_name', value_col='label_value')
+>>> Round 0 of type RandomCombinationsRound(n_libraries_per_round=1, n_mutations_per_library=15, n_variants_per_library=None) status is 'labeled'
+>>> Round 0 of type RandomCombinationsRound(n_libraries_per_round=1, n_mutations_per_library=15, n_variants_per_library=None) status is 'complete' and is immutable in database.
+>>> Round 1 of type ProSARCombinationsRound(n_libraries_per_round=1, n_mutations_per_library=15, n_prosar_mutations_per_library=10, n_variants_per_library=10, p_critereon=1e-4, max_parent_adjustments=5, rule_out_percentile=0.25) status is 'ready'
 
-# the final 10 are selected greedily
+# start next round
+runner.step()
+>>> Round 1 of type ProSARCombinationsRound(n_libraries_per_round=1, n_mutations_per_library=15, n_prosar_mutations_per_library=10, n_variants_per_library=10, p_critereon=1e-4, max_parent_adjustments=5, rule_out_percentile=0.25) status is 'generated', putative combinatorial library contains 15! variants. Mutations for combinations and parent sequence are at file path 'mutations_for_combinations.txt'
+# For this round, the parent is the best performer from the previous round.
+# The mutations tested in the previous round are considered. All labeled data are included, and featurized
+# on those mutations. From the analysis, the mutations from the previous round are either fixed if already present
+# in the new parent, included in the next library, or ruled out. Random mutations are also added
+combinatorial_library = MutationLibrary.load_from_file(
+    'combinatorial_library.csv', # assuming we created 1000 variants
+    schema={
+        'id_col': 'id',
+        'mutation_col': 'mutation',
+    }
+)
+runner.step(library=combinatorial_library) # it knows the parent for the round so we can convert to VariantLibrary internally
+>>> Round 1 of type ProSARCombinationsRound(n_libraries_per_round=1, n_mutations_per_library=15, n_prosar_mutations_per_library=10, n_variants_per_library=10, p_critereon=1e-4, max_parent_adjustments=5, rule_out_percentile=0.25) status is 'selected', library for experiment has 10 variants at file path 'library_for_exp.csv' # note that since n_variants_per_library=10, only the top 10 are tested
+# after testing them and creating a csv file with the resulting experimental labels
+runner.step(label_path='experimental_results.csv', id_col='id', name_col='label_name', value_col='label_value')
+>>> Round 1 of type ProSARCombinationsRound(n_libraries_per_round=1, n_mutations_per_library=15, n_prosar_mutations_per_library=10, n_variants_per_library=10, p_critereon=1e-4, max_parent_adjustments=5, rule_out_percentile=0.25) status is 'labeled'
+>>> Round 1 of type ProSARCombinationsRound(n_libraries_per_round=1, n_mutations_per_library=15, n_prosar_mutations_per_library=10, n_variants_per_library=10, p_critereon=1e-4, max_parent_adjustments=5, rule_out_percentile=0.25) status is 'complete' and is immutable in database.
+
+# you can then select the best variant
+runner.get_best_variant()
 ```
 
 ### 2.4 Running a full custom DE campaign
@@ -230,8 +377,8 @@ config = RunnerConfig(
 
     ]
 )
-
 runner = Runner(config)
+
 runner.step()
 >>> CampaignError: Cannot take step of round 0, status is 'not started'
 runner.step(data_path='initial_library.csv', parent_seq='MVKMG', id_col='id', mutations_col='mut') # the library from mutagenesis, etc
