@@ -34,7 +34,7 @@ Works that help define the contours of the space are retained. Work that is eith
 - __Summary__: The authors utilize a number of techniques to generate variation (saturation, random, inclusion of close homologs, and gene shuffling) and from the generated variation they indentify each possible mutation to design a combinatorial library. They use semi synthetic oligonucleotides to sample from permutations of the library to screen. A linear PLAS model is trained with a single coefficient for each possible binary mutation eg. A123T has a different coefficient than A123G. After each round, large coefficients from the model that are sufficiently confident (over multiple variants with that mutation) are used to filter out bad or neutral mutations. Beneficial mutations are fixed and cycled back into the library, along with some fresh variation.
 - __Design considerations__: 
     1. This method does not filter variants to test, it saturates the library with good mutations. This suggests that "estimators" may need to be used in the context of variant generation, not only aquisition functions. 
-    2. This method would require one to be able to join libraries. Eg. the user inputs a library of variants with tested scores, A library of mutations is produced by the PLAS estimator. This library needs to be joined with other mutations from variation like random mutagenesis
+    2. This method would require one to be able to join libraries. Eg. the user inputs a library of variants with tested scores, A library of mutations is produced by the PLAS estimator. This library needs to be joined with other mutations from variation like random mutagenesis. It also suggests that we may need to have two different orientations, eg. a pool of variants or a pool of mutations. Not sure if this can or should be accomplished with one class or should be broken up. Breaking it up will be more atomistic and pythonic but harder to write the final wrapping mechanisms.
 
 ### Saito, Y. et al. Machine-Learning-Guided Mutagenesis for Directed Evolution of Fluorescent Proteins. ACS Synth. Biol. 7, 2014–2022 (2018).
 - __Summary__: An initial random library is developed via point saturation mutagenesis and random mutagensis at four residue positions, which are used to train a GP. Used physicochemical residue features (residue wise features) concatenated to train a GP (COMBO) and used probability-of-improvement as an aquisition function. Eg. assuming guassian, the cumulative mass function of performance greater than the current step.
@@ -99,33 +99,18 @@ Works that help define the contours of the space are retained. Work that is eith
 - PhoQ
 - Hsu et al.
 
-# Concise summary for LLM input
+# Concise summary of current design considerations
 
-```
-# Catalog of Relevant Literature
+The design considerations for the project can be summarized as follows:
 
-## Learning the Fitness Landscape
+Center the framework around a "Library" class that records "Variants" and "Mutations". This class will be responsible for managing and organizing the data related to the genetic variations.
 
-- **Romero et al.** Demonstrated the efficacy of Gaussian processes to predict protein properties from sequences.
-- **Hopf et al.** Proposed the "EVMutation" model to predict the likelihood of mutations.
-- **Riesselman et al.** Introduced the "DeepSequence" model for predicting the likelihood of mutations incorporating high order interaction effects.
-- **Hsu et al.** Benchmarked several methods to combine supervised predictors and evolutionary density predictors.
+Use ML estimators in the context of both variant generation and acquisition functions. This means that machine learning models will be used to generate new variants as well as to select the most promising variants for further experimentation.
 
-## Directed Evolution Publications
+Implement different types of variant generation methods. Some methods, like random mutagenesis, will have limited control over the specific set of mutations, while others will allow for more precise manipulation of the protein sequence. The framework should be able to handle both scenarios.
 
-- **Fox et al.** Used techniques to generate variation and identify each possible mutation to design a combinatorial library.
-- **Saito et al.** Utilized Gaussian processes to train a model that uses physicochemical residue features.
-- **Wu et al.** Implemented machine learning on one-hot encoded mutations over a combinatorial library.
-- **Wittmann et al.** Enhanced the strategy of Wu et al. by using better-than-random initial data sampling for experimenting.
-- **Qiu et al.** Integrated unsupervised clustering into sample selection.
-- **Emami et al.** Proposed a DE mutation sampler that can explore greater than single point change paths.
-- **Linder et al.** Proposed a method to generate sequences with high predicted fitness and diversity.
+Save and load libraries and variant scores to a database. This will allow for easy retrieval and management of the data throughout the project. Additionally, track the directed evolution round to keep a record of the progress.
 
-## Design Considerations
+Consider leveraging existing frameworks like Scikit-learn for estimators, transformations, and pipelines. This can simplify the implementation and take advantage of the functionalities provided by these frameworks.
 
-- The framework should center around a "Library" class that records "Variants" and "Mutations". 
-- ML estimators need to be used in the context of variant generation as well as acquisition functions.
-- The framework should be able to generate Libraries by data input after sequencing for random mutagenesis methods.
-- Libraries should be saved and loaded to a database. Variant scores should also be saved, and the directed evolution round should be tracked.
-- A high-level "Runner" class should handle saving and loading to file over multiple evolution rounds, as well as calling the pipelines with varying parameters as the experiments proceed.
-```
+Define a high-level "Runner" class that handles the overall workflow of the project. This class should be responsible for saving and loading data, calling the pipelines with varying parameters, and managing the progression of the experiments.
