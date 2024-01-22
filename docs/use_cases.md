@@ -1,7 +1,5 @@
 # Use cases
 
-TODO: need to update based on changes to component spec, particular Round and Library
-
 ## 1. Base interactions with the package
 
 ### 1.1 Defining a parent sequence or a standalone variant
@@ -54,7 +52,6 @@ library[0].id
 >>> 'a'
 ```
 
-
 ### 1.4 Loading a set of variants from eg. a CSV file from a saturation mutagenesis experiment or a list of sequences
 
 Labels are tracked seperately.
@@ -98,7 +95,7 @@ variant_library = library.apply_parent(parent='MAGV')
 
 # can also create a combinatorial library, though I am not sure this is
 # relevant experimentally, as on the becnh we do not have control over
-# the phenotype? So this may be an unused feature also of type MutationLibrary
+# the genotype? So this may be an unused feature also of type MutationLibrary
 # this is a generator of mutation combinations
 comb_library = library.combinations()
 ```
@@ -135,45 +132,86 @@ generator.train('path_to_msa_file', **hyperparams)
 
 # generate
 library = generator.generate(parent_seq, number_of_variants=100)
+library
+>>> VariantLibrary(size=100, parent=Variant('MAGV'), fixed_size=False)
 ```
 
 ### 1.8 Using an aquisition function to filter a library
 
 ```python
-from aide import Library
+from aide import VariantLibrary
 from aide.acquisition import GPAcquisitionFunction
 from aide.features import ResiduePhysicalFeatures
 
-training_library = Library.from_file('training_library.csv', id_col='id', seq_col='sequence', label_col='label')
-library = Library.from_file('library.csv', id_col='id', seq_col='sequence')
-featurizer = ResiduePhysicalFeatures() # figures out which positions are variable when fit
+# this is a library of variants that have been tested in the lab
+# assume it has multiple labels, eg. 'a', 'b', 'c'
+# but we only care about 'a' and 'b'
+training_library = VariantLibrary.load_from_file(
+    'training_library.csv',
+    schema={
+        'id_col': 'id',
+        'seq_col': 'sequence',
+    },
+    label_file='labels.csv',
+    label_schema={
+        'id_col': 'id',
+        'name_col': 'label_type'
+        'value_col': 'label_value'
+    })
 
-acquisition_function = GPAcquisitionFunction(featurizer=featurizer, strategy='UCB')
+acquisition_function = GPAcquisitionFunction(
+    features=ResiduePhysicalFeatures(), # this does not work if the library is not a fixed sequence length
+    labels=['a', 'b'],
+    number_of_variants=10,
+    strategy='InfoMax',
+    multiobjective_aggregation='sum',
+)
 acquisition_function.fit(training_library)
 
-filtered_library = acquisition_function.filter(library, number_of_variants=10)
+# this is a library of variants that have not been tested in the lab
+library = VariantLibrary.load_from_file(
+    'library.csv',
+    schema={
+        'id_col': 'id',
+        'seq_col': 'sequence',
+    },
+)
+to_test = acquisition_function.filter(library)
+to_test
+>>> VariantLibrary(size=10, parent=Variant('MAGV'), fixed_size=True)
 ```
 
 ## 2. Running DE campaigns
 
-### 2.1 Running a single round of a selection DE campaign
-
+### 2.1 Running a single round of a selection step
 ```python
-from aide import Library
+from aide import VariantLibrary
 from aide.rounds import GPSelectionRound
+from aide.campaign.database import CampaignDatabase
 
-round = GPSelectionRound(features='ResiduePhysicalFeatures', strategy='UCB', number_of_variants=10)
+library = VariantLibrary.load_from_file(
+    'library.csv',
+    schema={
+        'id_col': 'id',
+        'seq_col': 'sequence',
+    },
+)
 
-library = Library.from_file('library.csv', id_col='id', seq_col='sequence', label_col='label') # some of these are labeled, some not
-round.set_starting_library(library)
+database = CampaignDatabase('path_to_db')
+database.save_library(library)
 
-to_experiment = round.get_library_for_exp() # this is the library that should be tested in the lab
-to_experiment.save_to_file('to_experiment.csv') # run it
-
-# after lab
-experimental_results = Library.from_file('experimental_results.csv', id_col='id', seq_col='sequence', label_col='label')
-round.set_labels(experimental_results) 
+# assumes you already have a saved GP model of base type AcquisitionFunction
+# from sklearn API
+# otherwise pass 
+round = GPSelectionRound(
+    database=database,
+    pretrained_acquisition_model='path_to_model_save',
+    number_of_variants=10)
+round.library_generation()
+round.library_selection()
+>>> VariantLibrary(size=10, parent=Variant('MAGV'), fixed_size=True)
 ```
+PICKUP HERE
 
 ### 2.2 Running a single round of a generation DE campaign
 

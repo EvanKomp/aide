@@ -1,6 +1,6 @@
 # Catalog of recent ML + DE publications
 
-Works that help define the contours of the space are retained. Work that is either not seminal or is captured by the other work is not given. Design considerations from the methods unto the framework are noted.
+Works that help define the contours of the space are retained. Work that is either not seminal or is captured by the other work is not given. Design considerations from the methods unto the framework are noted. Recall that we are trying to create a python framework that allows for a single API to enable AI applications for directed evolution.
 
 ## Learning the fitness landscape publications
 

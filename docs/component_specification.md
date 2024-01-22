@@ -180,9 +180,8 @@ Abstract parent libary generation class.
 ## 6. Round
 ### `BaseRound`
 Abstract parent round class. Used to define a step in the lab, eg. this might be generating a new library to test, or  it might be filtering an existing library. These need to be modular and stackable. We need functionality to check if the round is ready to go
-- `__init__(self, database: CampaignDatabase, params: Dict)`: Initialize with parameters. Status is None
+- `__init__(self, database: CampaignDatabase, params: Dict, pretrained_generation_model: str=None, pretrained_acquisition_model: str=None)`: Initialize with parameters. Status is None. If pretrained models are passed, skips the _setup_X steps and load the LibraryGeneration and AcquisitionFunction from file, which are both sklearn base estimators.
 - `commit_to_db(self)`: Save the round to the database on the top of the stack. Sets the round number.
-
 - `_setup_library_generation(self) -> LibraryGeneration`: Do any setup for library creation step, eg. load or train a sequence generator. Return a LibraryGeneration instance. Should be done from instance attributes only. By default, return a AllUnlabeledGeneration which just returns all unlabeled variants in the database.
 - `_library_generator` The setup library generation instance.
 - `library_generation(self)`: Set the putative library for the round. Runs the library_generator which returns a Library. See `_setup_library_generation`. The library is saved to the database. If variants in the libary were not already in the database, their round_produced is set to the current round.
