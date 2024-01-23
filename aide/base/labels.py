@@ -7,9 +7,9 @@ import json
 
 @dataclass(frozen=True, eq=True)
 class VariantLabel:
-    variant_id: str
     name: str
     value: Union[float, int, str]
+    variant_id: str = None
     round_idx: int = field(default=None, hash=True)
 
 class VariantLabels(MutableSet):
