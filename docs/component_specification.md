@@ -12,6 +12,8 @@
 9. Logging and Monitoring
 
 ---
+## Notes
+---
 
 ## 1. Variant and Mutation Classes
 These classes define proteins and functionality to apply mutations to those sequence strings. Data classes are utilized here.
@@ -43,7 +45,7 @@ These classes define proteins and functionality to apply mutations to those sequ
 ### `VariantLabel`
 Dataclass that stores a label name, value, round, and variant id for a variant.
 Attributes:
-- `variant_id`: str
+- `variant_id`: str = None
 - `name`: str
 - `value`: float, int, or str
 - `round`: int=None
@@ -101,6 +103,7 @@ Note for set opertations, Mutations are hashed by position, ref, alt, order.
 - `- -> MutationSet`: Return the difference of two mutation sets.
 
 - `get_variant_str(self, variant: Variant) -> str`: Return the string of the variant. See apply
+- NOTES need an ID associated with mutations, that can be applied to variants in certain situations
 
 ---
 
@@ -108,7 +111,7 @@ Note for set opertations, Mutations are hashed by position, ref, alt, order.
 
 Defines a collection of variants and methods to split them, extract certain variants, save to file etc. The package revolvoes around working with these libraries eg. generating them, adding labels to them, filtering them, etc.
 
-### `Library`
+### `VariantLibrary(Library)`
 - `__init__(self, variants: Iterable[Variant])`: Initialize with a list of variants.
 - `get_statistics(self) -> Dict`: Return descriptive statistics.
 - `add_labels(self, variant_ids: Iterable[str], names: Iterable[str], values: Iterable[float], round_idx: Iterable[int]=None, )`: Set labels by mapping to the correct variant.
@@ -128,9 +131,10 @@ Defines a collection of variants and methods to split them, extract certain vari
 - `parent`: Parent sequence of the library, only valid if `single_parent` is True.
 
 
-### `CombinatorialLibrary(Library)`
-- `__init__(self, mutations: MutationSet)`: Initialize with a list of mutations.
-- `generate(self)`: Generate the library.
+### `MutationLibrary(Library)`
+- `__init__(self, mutations: Iterable[MutationSet])`: Initialize with a list of mutations.
+- `apply_parent(self, parent: Variant) -> Library`: Apply the mutations to a parent sequence and return a VariantLibrary.
+- `combinations(self)` -> MutationLibrary, internally its just a generator over mutation set combinations, combining them with some light checking on no position overlaps.
 
 ---
 
@@ -176,9 +180,8 @@ Abstract parent libary generation class.
 ## 6. Round
 ### `BaseRound`
 Abstract parent round class. Used to define a step in the lab, eg. this might be generating a new library to test, or  it might be filtering an existing library. These need to be modular and stackable. We need functionality to check if the round is ready to go
-- `__init__(self, database: CampaignDatabase, params: Dict)`: Initialize with parameters. Status is None
+- `__init__(self, database: CampaignDatabase, params: Dict, pretrained_generation_model: str=None, pretrained_acquisition_model: str=None)`: Initialize with parameters. Status is None. If pretrained models are passed, skips the _setup_X steps and load the LibraryGeneration and AcquisitionFunction from file, which are both sklearn base estimators.
 - `commit_to_db(self)`: Save the round to the database on the top of the stack. Sets the round number.
-
 - `_setup_library_generation(self) -> LibraryGeneration`: Do any setup for library creation step, eg. load or train a sequence generator. Return a LibraryGeneration instance. Should be done from instance attributes only. By default, return a AllUnlabeledGeneration which just returns all unlabeled variants in the database.
 - `_library_generator` The setup library generation instance.
 - `library_generation(self)`: Set the putative library for the round. Runs the library_generator which returns a Library. See `_setup_library_generation`. The library is saved to the database. If variants in the libary were not already in the database, their round_produced is set to the current round.
@@ -232,6 +235,7 @@ Libraries are loaded and saved to the database. Scheme for a campaign:
     4. end_time: datetime nullable
     5. status: str, one of 'unknown', 'not ready', 'ready', 'generated', 'selected', 'labeled', 'complete'. See Round class for details.
     6. generated: bool nullable
+    7. parent: int nullable
     7. size: int nullable
     8. labeled_size: int nullable
     9. type: str, name of Round class
@@ -244,7 +248,16 @@ Libraries are loaded and saved to the database. Scheme for a campaign:
     4. round_experiment: int nullable FK
     5. parent: str, nullable
     6. mutations: str, nullable
-    7. sequence: str
+    7. sequence: str, nullable
+Must have either sequence, or parent and mutations
+
+- __Table: MutationPool__:
+    1. id: int PK
+    2. position: int
+    3. alt: str
+    4. active: bool
+    5. recent_round: int nullable
+    5. parent_id: str
 
 - __Table: Labels__:
     1. id: int PK
@@ -266,6 +279,12 @@ Libraries are loaded and saved to the database. Scheme for a campaign:
 - `get_rounds(self) -> List[Round]`: Return a list of all rounds in the database.
 - `get_rounds_by_status(self, status: str) -> List[Round]`: Return a list of all rounds in the database with the given status.
 - `get_current_round(self) -> Round`: Return the latest round that is at least ready.
+
+### `MutationPoolHander`
+Keeps the mutation pool table updated as sequences are added to the libary. Mutations are
+tracked with respect to a parent, but the class will check if the parent's lineage are the same length as the parent, and for as long as it is, will include those parent's mutations in the pool.
+- `__init__(self, db: CampaignDatabase)`: Initialize with a database
+- `update_with_library(self, library: Library)`: Update the mutation pool with a library.
 
 ## Package Structure
 

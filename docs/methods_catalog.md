@@ -1,6 +1,6 @@
 # Catalog of recent ML + DE publications
 
-Works that help define the contours of the space are retained. Work that is either not seminal or is captured by the other work is not given. Design considerations from the methods unto the framework are noted.
+Works that help define the contours of the space are retained. Work that is either not seminal or is captured by the other work is not given. Design considerations from the methods unto the framework are noted. Recall that we are trying to create a python framework that allows for a single API to enable AI applications for directed evolution.
 
 ## Learning the fitness landscape publications
 
@@ -31,10 +31,10 @@ Works that help define the contours of the space are retained. Work that is eith
 
 ## DE Publications
 ### Fox, R. J. et al. Improving catalytic function by ProSAR-driven enzyme evolution. Nat Biotechnol 25, 338–344 (2007).
-- __Summary__: The authors utilize a number of techniques to generate variation (saturation, random, inclusion of close homologs, and gene shuffling) and from the generated variation the indentify each possible mutation to design a combinatorial library. The use semi synthetic oligonucleotides to sample from permutations of the library to screen. A linear PLAS model is trained with a single coefficient for each possible binary mutation eg. A123T has a different coefficient than A123G. After each round, large coefficients from the model that are sufficiently confident (over multiple variants with that mutation) are used to filter out bad or neutral mutations. Beneficial mutations are fixed and cycled back into the library, along with some fresh variation.
+- __Summary__: The authors utilize a number of techniques to generate variation (saturation, random, inclusion of close homologs, and gene shuffling) and from the generated variation they indentify each possible mutation to design a combinatorial library. They use semi synthetic oligonucleotides to sample from permutations of the library to screen. A linear PLAS model is trained with a single coefficient for each possible binary mutation eg. A123T has a different coefficient than A123G. After each round, large coefficients from the model that are sufficiently confident (over multiple variants with that mutation) are used to filter out bad or neutral mutations. Beneficial mutations are fixed and cycled back into the library, along with some fresh variation.
 - __Design considerations__: 
     1. This method does not filter variants to test, it saturates the library with good mutations. This suggests that "estimators" may need to be used in the context of variant generation, not only aquisition functions. 
-    2. This method would require one to be able to join libraries. Eg. the user inputs a library of variants with tested scores, A library of mutations is produced by the PLAS estimator. This library needs to be joined with other mutations from variation like random mutagenesis
+    2. This method would require one to be able to join libraries. Eg. the user inputs a library of variants with tested scores, A library of mutations is produced by the PLAS estimator. This library needs to be joined with other mutations from variation like random mutagenesis. It also suggests that we may need to have two different orientations, eg. a pool of variants or a pool of mutations. Not sure if this can or should be accomplished with one class or should be broken up. Breaking it up will be more atomistic and pythonic but harder to write the final wrapping mechanisms.
 
 ### Saito, Y. et al. Machine-Learning-Guided Mutagenesis for Directed Evolution of Fluorescent Proteins. ACS Synth. Biol. 7, 2014–2022 (2018).
 - __Summary__: An initial random library is developed via point saturation mutagenesis and random mutagensis at four residue positions, which are used to train a GP. Used physicochemical residue features (residue wise features) concatenated to train a GP (COMBO) and used probability-of-improvement as an aquisition function. Eg. assuming guassian, the cumulative mass function of performance greater than the current step.
@@ -75,9 +75,15 @@ Works that help define the contours of the space are retained. Work that is eith
 - __Design Considerations__:
     1. Once the model is trained, we only need the generator. Thus it can serve as Library generator. We probaby do not want to include code to train the model, and instead rely on their code. We should have a method to load the trained model and output a generator.
 
+### Case, M., Smith, M., Vinh, J. & Thurber, G. Machine Learning to Predict Continuous Protein Properties from Simple Binary Sorting and Deep Sequencing Data. 2023.06.09.544229 Preprint at https://doi.org/10.1101/2023.06.09.544229 (2023).
+
+- __Summary__: This study presents a method integrating Linear Discriminant Analysis (LDA) with Integer Linear Programming (ILP). Binary sorting: data is binarized. This is used to train a LDA model which is basically a classifier but can output a continuous score. Then ILP is used to find the best combination of mutations to maximize the score, which is the suggested variant. This is a generation method.
+- __Design Considerations__:
+    1. Nothing new I think. ILP will have to be wrapped into a generator class a lot like Emami.
 
 ## Design notes
-- Some strategies are pure active learning strategies that use the same algorithm for each round, but most have multiple stages: exploration the exploitation. Thus suggests that when we rebuild the above strategies in our framework, we need to build multiple rounds each pulling from the same pool of components but maybe differing between rounds. eg. we might have an ftMLDEPipeline component that defines the estimators and aquisition functions for a single round based on inpuit parameters. Then we have A runner run multiple.
+- Workflow for a single round breaks down into two stages: library generation and library filtering. In library generation, the database of any existing library is called along with generator models, depending on the method, that produces a putative library. In library filtering, the library is filtered by aquisition functions, which may be a combination of supervised and unsupervised models. The filtered library is then suggested for experiment.
+- Some strategies are pure active learning strategies that use the same algorithm for each round, but most have multiple stages: exploration the exploitation. Thus suggests that when we rebuild the above strategies in our framework, we need to build multiple rounds each pulling from the same pool of components but maybe differing between rounds. eg. we might have an ftMLDEPipeline component that defines the estimators and aquisition functions for a single round based on input parameters. Then we have A runner run multiple.
 - The framework will require that ML estimators be used in the context of variant generation as well as aquisition functions.
 - We should center the framework around a "Library" class that records "Variants" and "Mutations". A variant maps a full sequence. Variants can be directly defined or defined by combining Mutations. Variant generation steps will produce Libraries. Aquisition function methods act on Libraries to produce smaller Libraries.
     - Mutation class must track wild type sequence (a Variant object), position and change of amino acids
@@ -86,8 +92,8 @@ Works that help define the contours of the space are retained. Work that is eith
     - Variants should track (if any) Mutations that resulted in them as well as the original Variant
     - Variants can be of type "Mutational" where it is exactly described by a set of mutations from another variant or "Abstract" where it is just a sequence. We can try to intuit a Mutational Variant from abstratc by eg. alignment, but it will be inexact.
 - There will have to be a few subclasses of Library, eg. VariantLibrary that is just a list of variants, CombinatorialLibrary which is defined by a set of mutations
-- Variant generation should probably have a few types, dictated by the experimental methods. Most methods do not have full control over the specific set of mutations and are instead random. For the random case, the variation is manually input to the framework producing a manual Library for downstream aquisition functions. For the experimental setups that allow us to express a specific protein, we can have Libraries defined in silico by the framework, eg. by random mutagenesis, recombination, deep learning generation, or model filtered mutations.
-- We should be writing things to a duck db database and libraries should be able to be saved and loaded to the database. So should variant scores. We must somehow also track which directoed evolution round we are in. This way it is easy to load libraries from each round, as well as the combination of all evaluated variants for model training from all rounds.
+- Variant generation should probably have a few types, dictated by the experimental methods. Most methods do not have full control over the specific set of mutations and can be quaried for combinations. For the experimental setups that allow us to express a specific protein, we can have Libraries defined in silico by the framework, eg. by random mutagenesis, recombination, deep learning generation, or model filtered mutations.
+- We should be writing things to a duck db database and libraries should be able to be saved and loaded to the database. So should variant scores. We must somehow also track which directed evolution round we are in. This way it is easy to load libraries from each round, as well as the combination of all evaluated variants for model training from all rounds.
 - It would be nice to leverage existing frameworks like Sklearn for estimators, transformations, pipelines
 - We should be able to define a Pipeline using the modular pieces if the library that represent one directed evolution round. Fully verbose parameterization
 - Some high level "Runner" class should handle saving and loading to file over mutliple evolution rounds, as well as calling the pipelines with varying parameters as the experiments procede. Eg. not all methods are exactly the same parameters for each round. Many start off more random, then become more refined as the models learns.
@@ -99,33 +105,18 @@ Works that help define the contours of the space are retained. Work that is eith
 - PhoQ
 - Hsu et al.
 
-# Concise summary for LLM input
+# Concise summary of current design considerations
 
-```
-# Catalog of Relevant Literature
+The design considerations for the project can be summarized as follows:
 
-## Learning the Fitness Landscape
+Center the framework around a "Library" class that records "Variants" and "Mutations". This class will be responsible for managing and organizing the data related to the genetic variations.
 
-- **Romero et al.** Demonstrated the efficacy of Gaussian processes to predict protein properties from sequences.
-- **Hopf et al.** Proposed the "EVMutation" model to predict the likelihood of mutations.
-- **Riesselman et al.** Introduced the "DeepSequence" model for predicting the likelihood of mutations incorporating high order interaction effects.
-- **Hsu et al.** Benchmarked several methods to combine supervised predictors and evolutionary density predictors.
+Use ML estimators in the context of both variant generation and acquisition functions. This means that machine learning models will be used to generate new variants as well as to select the most promising variants for further experimentation.
 
-## Directed Evolution Publications
+Implement different types of variant generation methods. Some methods, like random mutagenesis, will have limited control over the specific set of mutations, while others will allow for more precise manipulation of the protein sequence. The framework should be able to handle both scenarios.
 
-- **Fox et al.** Used techniques to generate variation and identify each possible mutation to design a combinatorial library.
-- **Saito et al.** Utilized Gaussian processes to train a model that uses physicochemical residue features.
-- **Wu et al.** Implemented machine learning on one-hot encoded mutations over a combinatorial library.
-- **Wittmann et al.** Enhanced the strategy of Wu et al. by using better-than-random initial data sampling for experimenting.
-- **Qiu et al.** Integrated unsupervised clustering into sample selection.
-- **Emami et al.** Proposed a DE mutation sampler that can explore greater than single point change paths.
-- **Linder et al.** Proposed a method to generate sequences with high predicted fitness and diversity.
+Save and load libraries and variant scores to a database. This will allow for easy retrieval and management of the data throughout the project. Additionally, track the directed evolution round to keep a record of the progress.
 
-## Design Considerations
+Consider leveraging existing frameworks like Scikit-learn for estimators, transformations, and pipelines. This can simplify the implementation and take advantage of the functionalities provided by these frameworks.
 
-- The framework should center around a "Library" class that records "Variants" and "Mutations". 
-- ML estimators need to be used in the context of variant generation as well as acquisition functions.
-- The framework should be able to generate Libraries by data input after sequencing for random mutagenesis methods.
-- Libraries should be saved and loaded to a database. Variant scores should also be saved, and the directed evolution round should be tracked.
-- A high-level "Runner" class should handle saving and loading to file over multiple evolution rounds, as well as calling the pipelines with varying parameters as the experiments proceed.
-```
+Define a high-level "Runner" class that handles the overall workflow of the project. This class should be responsible for saving and loading data, calling the pipelines with varying parameters, and managing the progression of the experiments.
