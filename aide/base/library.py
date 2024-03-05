@@ -2,6 +2,7 @@ from __future__ import annotations
 from collections import UserDict
 import warnings
 
+import pandas as pd
 
 from aide.base import Variant
 
@@ -44,6 +45,57 @@ class Library(UserDict):
         if not self.single_parent:
             raise ValueError("Library does not have a single parent")
         return list(self.values())[0].parent
+    
+    def add_labels_df(self, df: pd.DataFrame, variant_id_col: str='id', label_name_col: str='name', label_value_col: str='value', round_idx_col: str=None):
+        """Add labels to variants in the library.
+        
+        Groups by variant id such that each variant can submit labels in batch.
+
+        Params
+        ------
+        df: pd.DataFrame
+            The dataframe of labels to add.
+        variant_id_col: str
+            The column in the dataframe that contains the variant id.
+        label_name_col: str
+            The column in the dataframe that contains the label name.
+        label_value_col: str
+            The column in the dataframe that contains the label value.
+        round_idx_col: str, optional
+            The column in the dataframe that contains the round index.
+        """
+        for variant_id, labels_df in df.groupby(variant_id_col):
+            if variant_id not in self:
+                warnings.warn(f"Variant {variant_id} not in library", IncompleteParentageWarning)
+                continue
+            variant = self[variant_id]
+            names = list(labels_df[label_name_col].values)
+            values = list(labels_df[label_value_col].values)
+            round_idxs = list(labels_df[round_idx_col].values) if round_idx_col else None
+            variant.add_labels(names=names, values=values, round_idx=round_idxs)
+
+    def add_labels(self, variant_ids:  Iterable[str], label_names: Iterable[str], label_values: Iterable[float], round_idxs: Union[int, Iterable[int]]=None):
+        """Add labels to variants in the library.
+        
+        Params
+        ------
+        variant_ids: Iterable[str]
+            The variant ids to add labels to.
+        label_names: Iterable[str]
+            The names of the labels to add.
+        label_values: Iterable[float]
+            The values of the labels to add.
+        round_idxs: Union[int, Iterable[int]], optional
+            The round index or round indices of the labels to add.
+        """
+        # create dataframe and leverage the other component
+        df = pd.DataFrame({
+            'id': variant_ids,
+            'name': label_names,
+            'value': label_values,
+            'round_idx': round_idxs,
+        })
+        self.add_labels_df(df, variant_id_col='id', label_name_col='name', label_value_col='value', round_idx_col='round_idx')
 
     def get_unlabeled(self, names: Union[str, Iterable[str]]=None, round_idx: Union[int, Iterable[int]]=None) -> Library:
         """Get a library of variants that do not have a label with the given name and round_idx.
@@ -165,4 +217,15 @@ class Library(UserDict):
                 raise KeyError(f"Could not find variant {variant_id} in lookup or database")
 
         return cls([all_variants[variant_id] for variant_id in variant_ids])
+
+    @property
+    def variable_residues(self):
+        if not self.single_parent:
+            raise ValueError("Library does not have a single parent. We cannot parse the variable residues.")
+        # each variant mutations has the attribute "positions" that is a set of int
+        # find all posible mutatable positions in the library
+        all_positions = set()
+        for variant in self.values():
+            all_positions.update(variant.mutations.positions)
+        return all_positions
 

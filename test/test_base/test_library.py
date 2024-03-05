@@ -222,7 +222,7 @@ class TestLibrary(unittest.TestCase):
         self.assertIs(self.library.parent, self.parent)
 
     def test_variable_residues(self):
-        self.assertEqual(self.library.variable_residues, [1, 2])
+        self.assertEqual(self.library.variable_residues, {1, 2})
 
     def test_add_labels_df(self):
         df = pd.DataFrame(
@@ -241,5 +241,5 @@ class TestLibrary(unittest.TestCase):
             variant_ids=['myid'],
             label_names=['c'],
             label_values=[1],
-            round_idx=[2])
+            round_idxs=[2])
         self.assertTrue(len(self.library['myid'].get_label_values('c')) == 1)

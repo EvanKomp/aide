@@ -274,7 +274,7 @@ class Variant:
         if round_experiment not in self.round_experiment:
             self.round_experiment.append(round_experiment)
 
-    def add_labels(self, names: Iterable[str], values: Iterable[float], round_idx: int=None):
+    def add_labels(self, names: Iterable[str], values: Iterable[float], round_idx: Union[int, List[int]]=None):
         """Add multiple labels to the variant.
         
         Params
@@ -302,6 +302,19 @@ class Variant:
         """Get a dataframe of the labels.
         """
         return self.labels.df
+    
+    def get_label_values(self, label_name: str, round_idx: Union[int, Iterable[int]]=None) -> List[float]:
+        """Get the values of a label, eg a list of numbers.
+        
+        Params
+        ------
+        label_name : str
+            The name of the label to retrieve values for
+        round_idx : Union[int, Iterable[int]]=None 
+            The round the label was measured.
+        """
+        return self.labels.get_values(label_name, round_idx=round_idx)
+
 
     def remove_labels(self, names: Union[str, Iterable[str]], round_idx: int=None):
         """Remove multiple labels from the variant.
@@ -411,8 +424,6 @@ class Variant:
         mutations = []
         pos1 = 0  # Position counter for seq1
         order = 0 # Order counter for insertions
-
-        print(query, subject)
         
         for s1, s2 in zip(query, subject):
             mutation_str = ""
@@ -823,6 +834,11 @@ class MutationSet(MutableSet, Hashable):
     def position_map(self):
         """A map of positions in a sequence to mutations."""
         return {m.position: m for m in self.mutations}
+    
+    @property
+    def positions(self):
+        """The positions of the mutations."""
+        return set([mutation.position for mutation in self.mutations])
 
     @classmethod
     def from_string(cls, mutations: Union[str, List[str]], zero_indexed: bool=False):
